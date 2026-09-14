@@ -1,0 +1,7 @@
+.env
+.prettierrc
+
+dist/
+.auth/
+.vscode/
+node_modules/
