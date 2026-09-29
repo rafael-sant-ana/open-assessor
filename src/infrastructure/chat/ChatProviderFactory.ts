@@ -3,11 +3,13 @@ import type {
     ChatProvider,
 } from '../../providers/ChatProvider.js';
 import BaileysWhatsAppProvider from './BaileysWhatsAppProvider.js';
+import TelegramProvider from './TelegramProvider.js';
 
 const DEFAULT_PLATFORM: ChatPlatform = 'whatsapp';
 
 const PROVIDERS: Partial<Record<ChatPlatform, () => ChatProvider>> = {
     whatsapp: () => new BaileysWhatsAppProvider(),
+    telegram: () => new TelegramProvider(),
 };
 
 export default class ChatProviderFactory {
