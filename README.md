@@ -166,7 +166,8 @@ sheet doesn't exist.
 | `OPENAI_MODEL`                   | no       | defaults to a small, cheap model               |
 | `ANTHROPIC_API_KEY`              | no       | alternative to OpenAI/Gemini (priority: OpenAI, Anthropic, Gemini) |
 | `ANTHROPIC_MODEL`                | no       | defaults to `claude-haiku-4-5-20251001`        |
-| `ALLOWED_JIDS`                   | yes      | comma-separated, e.g. `5531999999999@s.whatsapp.net` |
+| `ALLOWED_USERS`                  | yes*     | comma-separated `platform:id`, e.g. `telegram:123456` |
+| `ALLOWED_JIDS`                   | yes*     | WhatsApp JIDs (*one of the two is required); comma-separated, e.g. `5531999999999@s.whatsapp.net` |
 | `AUTH_STATE_PATH`                | no       | defaults to `./.auth`                          |
 | `SPREADSHEET_ID`                 | v1       | from the spreadsheet URL                       |
 | `GOOGLE_APPLICATION_CREDENTIALS` | v1       | path to the service account JSON               |
