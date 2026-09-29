@@ -1,11 +1,16 @@
 import { GoogleGenAI, Chat } from '@google/genai';
 import type { LLMProvider } from '../../providers/LLMProvider.js';
 
-export default class OpenAILLMProvider implements LLMProvider {
+export default class GeminiLLMProvider implements LLMProvider {
     private client: GoogleGenAI;
     private conversations: Map<string, Chat> = new Map();
 
-    constructor() {
+    constructor(client?: GoogleGenAI) {
+        if (client) {
+            this.client = client;
+            return;
+        }
+
         if (!process.env.GEMINI_API_KEY)
             throw new Error(
                 'Missing required environment variable: GEMINI_API_KEY. Check the .env.example',
