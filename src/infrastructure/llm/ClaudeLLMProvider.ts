@@ -19,7 +19,12 @@ export default class ClaudeLLMProvider implements LLMProvider {
     //  TODO: Cuidar para limpar conversas não utilizadas durante muito tempo (possível vazamento de memória)
     private conversations: Map<string, Anthropic.MessageParam[]> = new Map();
 
-    constructor() {
+    constructor(client?: Anthropic) {
+        if (client) {
+            this.client = client;
+            return;
+        }
+
         if (!process.env.ANTHROPIC_API_KEY)
             throw new Error(
                 'Missing required environment variable: ANTHROPIC_API_KEY. Check the .env.example',
@@ -50,8 +55,10 @@ export default class ClaudeLLMProvider implements LLMProvider {
 
         if (!text) throw new Error('Failed to generate response: empty body');
 
-        messages.push({ role: 'assistant', content: text });
-        this.conversations.set(chatId, this.trim(messages));
+        this.conversations.set(
+            chatId,
+            this.trim([...messages, { role: 'assistant', content: text }]),
+        );
 
         return text;
     }
