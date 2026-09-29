@@ -9,15 +9,17 @@ import {
     DisconnectReason,
     useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
-import type { WhatsAppProvider } from '../../providers/WhatsAppProvider.js';
+import type { ChatProvider } from '../../providers/ChatProvider.js';
 
-export default class BaileysWhatsAppProvider implements WhatsAppProvider {
+export default class BaileysWhatsAppProvider implements ChatProvider {
+    readonly platform = 'whatsapp' as const;
     #sock: WASocket | null = null;
     #logger = new PinoLogger(
         'Baileys Provider',
         (process.env.LOG_LEVEL as P.Level) ?? 'info',
     );
     #isConnected: boolean = false;
+    #shouldReconnect: boolean = true;
     #messageHandlers: Set<(message: Message) => Promise<void>> = new Set();
 
     get isConnected() {
@@ -26,6 +28,7 @@ export default class BaileysWhatsAppProvider implements WhatsAppProvider {
 
     async connect() {
         if (this.#isConnected) return;
+        this.#shouldReconnect = true;
 
         const loggingLevel = process.env.BAILEYS_LOG_LEVEL ?? 'info';
         const credentialsPath = process.env.AUTH_STATE_PATH ?? './.auth';
@@ -50,7 +53,7 @@ export default class BaileysWhatsAppProvider implements WhatsAppProvider {
                 const jid = message.key.remoteJid;
 
                 this.#logger.debug('Message received from', {
-                    chatJid: jid!,
+                    chatId: jid!,
                     messageId: message.key.id!,
                 });
 
@@ -66,29 +69,16 @@ export default class BaileysWhatsAppProvider implements WhatsAppProvider {
 
                 if (!text) continue;
 
-                const allowedJids = new Set(
-                    process.env.ALLOWED_JIDS!.split(','),
-                );
-
-                if (text.toLowerCase() === '/meu-jid') {
-                    await this.sendMessage(jid!, `Seu JID é:\n> ${jid}`);
-                    continue;
-                }
-
-                // Verifica se o JID do usuário está na whitelist
-                if (
-                    !allowedJids.has(jid!) &&
-                    !allowedJids.has(message.key.remoteJidAlt!)
-                ) {
-                    continue;
-                }
-
                 for (const handler of this.#messageHandlers) {
                     await handler({
+                        platform: this.platform,
                         author: {
-                            jid: jid!,
+                            id: jid!,
+                            aliases: message.key.remoteJidAlt
+                                ? [message.key.remoteJidAlt]
+                                : [],
                         },
-                        chatJid: jid!,
+                        chatId: jid!,
                         content: text,
                         id: message.key.id!,
                     });
@@ -128,6 +118,8 @@ export default class BaileysWhatsAppProvider implements WhatsAppProvider {
                         return;
                     }
 
+                    if (!this.#shouldReconnect) return;
+
                     console.log('Reconectando...');
                     this.connect();
                 }
@@ -144,14 +136,21 @@ export default class BaileysWhatsAppProvider implements WhatsAppProvider {
         });
     }
 
-    async sendPresenceUpdate(
-        status: 'composing' | 'recording' | 'paused',
-        chatJid: string,
-    ) {
+    async sendTyping(chatId: string, active: boolean) {
         if (this.#sock === null)
             throw new Error("The provider isn't connected");
 
-        this.#sock.sendPresenceUpdate(status, chatJid);
+        await this.#sock.sendPresenceUpdate(
+            active ? 'composing' : 'paused',
+            chatId,
+        );
+    }
+
+    async disconnect() {
+        this.#shouldReconnect = false;
+        this.#sock?.end(undefined);
+        this.#sock = null;
+        this.#isConnected = false;
     }
 
     onMessage(handler: (message: Message) => Promise<void>) {

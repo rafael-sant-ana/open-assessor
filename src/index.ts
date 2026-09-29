@@ -1,13 +1,18 @@
 import 'dotenv/config';
 
-if (!process.env.ALLOWED_JIDS) {
+import AllowList from './application/security/AllowList.js';
+
+const allowList = AllowList.fromEnv();
+
+if (allowList.isEmpty) {
     console.error(
-        'Missing required environment key: ALLOWED_JIDS. Check the .env.example',
+        'You must configure one of those environment variables: ALLOWED_USERS or ALLOWED_JIDS. Check the .env.example',
     );
     process.exit(1);
 }
 
 import type { Level } from 'pino';
+import type { ChatProvider } from './providers/ChatProvider.js';
 import PinoLogger from './infrastructure/logging/PinoLogger.js';
 import MessageHandler from './application/handlers/MessageHandler.js';
 import LLMProviderFactory from './infrastructure/llm/LLMProviderFactory.js';
@@ -23,13 +28,21 @@ async function main() {
     const { name, provider: llmProvider } = LLMProviderFactory.create();
     logger.info(`Using ${name} LLM provider`);
 
-    const whatsappProvider = new BaileysWhatsAppProvider();
+    const chatProviders: ChatProvider[] = [new BaileysWhatsAppProvider()];
+    const messageHandler = new MessageHandler(llmProvider, allowList);
 
-    logger.debug('Connecting...');
-    await whatsappProvider.connect();
+    for (const chat of chatProviders) {
+        chat.onMessage((message) => messageHandler.handle(message, chat));
 
-    const messageHandler = new MessageHandler(whatsappProvider, llmProvider);
-    whatsappProvider.onMessage((message) => messageHandler.handle(message));
+        logger.debug(`Connecting ${chat.platform}...`);
+        await chat.connect();
+    }
+
+    process.once('SIGINT', async () => {
+        await Promise.all(chatProviders.map((chat) => chat.disconnect()));
+        process.exit(0);
+    });
+
     logger.info('The bot is ready!');
 }
 
