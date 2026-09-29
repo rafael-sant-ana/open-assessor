@@ -7,23 +7,10 @@ if (!process.env.ALLOWED_JIDS) {
     process.exit(1);
 }
 
-if (
-    !process.env.OPENAI_API_KEY &&
-    !process.env.ANTHROPIC_API_KEY &&
-    !process.env.GEMINI_API_KEY
-) {
-    console.error(
-        'You must configure one of those environment variables: OPENAI_API_KEY, ANTHROPIC_API_KEY or GEMINI_API_KEY',
-    );
-    process.exit(1);
-}
-
 import type { Level } from 'pino';
 import PinoLogger from './infrastructure/logging/PinoLogger.js';
 import MessageHandler from './application/handlers/MessageHandler.js';
-import OpenAILLMProvider from './infrastructure/llm/OpenAILLMProvider.js';
-import ClaudeLLMProvider from './infrastructure/llm/ClaudeLLMProvider.js';
-import GeminiLLMProvider from './infrastructure/llm/GeminiLLMProvider.js';
+import LLMProviderFactory from './infrastructure/llm/LLMProviderFactory.js';
 import BaileysWhatsAppProvider from './infrastructure/whatsapp/BaileysWhatsAppProvider.js';
 
 async function main() {
@@ -33,17 +20,8 @@ async function main() {
     );
 
     logger.debug('Initializing...');
-    const llmProvider = process.env.OPENAI_API_KEY
-        ? new OpenAILLMProvider()
-        : process.env.ANTHROPIC_API_KEY
-          ? new ClaudeLLMProvider()
-          : new GeminiLLMProvider();
-
-    if (llmProvider instanceof OpenAILLMProvider)
-        logger.info('Using OpenAI LLM provider');
-    else if (llmProvider instanceof ClaudeLLMProvider)
-        logger.info('Using Claude LLM provider');
-    else logger.info('Using Gemini LLM provider');
+    const { name, provider: llmProvider } = LLMProviderFactory.create();
+    logger.info(`Using ${name} LLM provider`);
 
     const whatsappProvider = new BaileysWhatsAppProvider();
 
@@ -55,4 +33,7 @@ async function main() {
     logger.info('The bot is ready!');
 }
 
-main();
+main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+});
