@@ -164,6 +164,8 @@ sheet doesn't exist.
 | -------------------------------- | -------- | --------------------------------------------- |
 | `OPENAI_API_KEY`                 | yes      |                                               |
 | `OPENAI_MODEL`                   | no       | defaults to a small, cheap model               |
+| `ANTHROPIC_API_KEY`              | no       | alternative to OpenAI/Gemini (priority: OpenAI, Anthropic, Gemini) |
+| `ANTHROPIC_MODEL`                | no       | defaults to `claude-haiku-4-5-20251001`        |
 | `ALLOWED_JIDS`                   | yes      | comma-separated, e.g. `5531999999999@s.whatsapp.net` |
 | `AUTH_STATE_PATH`                | no       | defaults to `./.auth`                          |
 | `SPREADSHEET_ID`                 | v1       | from the spreadsheet URL                       |
