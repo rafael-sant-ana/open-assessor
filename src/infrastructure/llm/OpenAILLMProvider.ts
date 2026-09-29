@@ -5,7 +5,12 @@ export default class OpenAILLMProvider implements LLMProvider {
     private client: OpenAI;
     private conversations: Map<string, string> = new Map();
 
-    constructor() {
+    constructor(client?: OpenAI) {
+        if (client) {
+            this.client = client;
+            return;
+        }
+
         if (!process.env.OPENAI_API_KEY)
             throw new Error(
                 'Missing required environment key: OPENAI_API_KEY. Check the .env.example',
