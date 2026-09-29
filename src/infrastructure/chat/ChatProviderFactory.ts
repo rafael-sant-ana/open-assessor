@@ -2,7 +2,7 @@ import type {
     ChatPlatform,
     ChatProvider,
 } from '../../providers/ChatProvider.js';
-import BaileysWhatsAppProvider from '../whatsapp/BaileysWhatsAppProvider.js';
+import BaileysWhatsAppProvider from './BaileysWhatsAppProvider.js';
 
 const DEFAULT_PLATFORM: ChatPlatform = 'whatsapp';
 
