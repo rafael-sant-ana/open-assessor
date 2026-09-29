@@ -166,6 +166,7 @@ sheet doesn't exist.
 | `OPENAI_MODEL`                   | no       | defaults to a small, cheap model               |
 | `ANTHROPIC_API_KEY`              | no       | alternative to OpenAI/Gemini (priority: OpenAI, Anthropic, Gemini) |
 | `ANTHROPIC_MODEL`                | no       | defaults to `claude-haiku-4-5-20251001`        |
+| `CHAT_PROVIDER`                  | no       | chat platform, defaults to `whatsapp`          |
 | `ALLOWED_USERS`                  | yes*     | comma-separated `platform:id`, e.g. `telegram:123456` |
 | `ALLOWED_JIDS`                   | yes*     | WhatsApp JIDs (*one of the two is required); comma-separated, e.g. `5531999999999@s.whatsapp.net` |
 | `AUTH_STATE_PATH`                | no       | defaults to `./.auth`                          |
