@@ -33,6 +33,7 @@
         "typescript": "^7.0.2"
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "^0.129.0",
         "@google/genai": "^2.22.0",
         "@whiskeysockets/baileys": "^7.0.0-rc14",
         "dotenv": "^17.4.2",
