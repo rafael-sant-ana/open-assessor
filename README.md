@@ -158,6 +158,8 @@ single-user tool.
 Step 3 is the one everybody forgets. Without it you get a `404` that looks like the
 sheet doesn't exist.
 
+To use Telegram instead of WhatsApp, follow the [Telegram bot setup guide](docs/telegram-bot.md).
+
 ### Environment
 
 | Variable                         | Required | Description                                   |
@@ -166,7 +168,8 @@ sheet doesn't exist.
 | `OPENAI_MODEL`                   | no       | defaults to a small, cheap model               |
 | `ANTHROPIC_API_KEY`              | no       | alternative to OpenAI/Gemini (priority: OpenAI, Anthropic, Gemini) |
 | `ANTHROPIC_MODEL`                | no       | defaults to `claude-haiku-4-5-20251001`        |
-| `CHAT_PROVIDER`                  | no       | chat platform, defaults to `whatsapp`          |
+| `CHAT_PROVIDER`                  | no       | chat platform: `whatsapp` (default) or `telegram` |
+| `TELEGRAM_BOT_TOKEN`             | yes**    | bot token from @BotFather (**only when `CHAT_PROVIDER=telegram`) |
 | `ALLOWED_USERS`                  | yes*     | comma-separated `platform:id`, e.g. `telegram:123456` |
 | `ALLOWED_JIDS`                   | yes*     | WhatsApp JIDs (*one of the two is required); comma-separated, e.g. `5531999999999@s.whatsapp.net` |
 | `AUTH_STATE_PATH`                | no       | defaults to `./.auth`                          |
