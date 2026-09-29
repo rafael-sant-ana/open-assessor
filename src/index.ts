@@ -12,11 +12,10 @@ if (allowList.isEmpty) {
 }
 
 import type { Level } from 'pino';
-import type { ChatProvider } from './providers/ChatProvider.js';
 import PinoLogger from './infrastructure/logging/PinoLogger.js';
 import MessageHandler from './application/handlers/MessageHandler.js';
 import LLMProviderFactory from './infrastructure/llm/LLMProviderFactory.js';
-import BaileysWhatsAppProvider from './infrastructure/whatsapp/BaileysWhatsAppProvider.js';
+import ChatProviderFactory from './infrastructure/chat/ChatProviderFactory.js';
 
 async function main() {
     const logger = new PinoLogger(
@@ -28,18 +27,17 @@ async function main() {
     const { name, provider: llmProvider } = LLMProviderFactory.create();
     logger.info(`Using ${name} LLM provider`);
 
-    const chatProviders: ChatProvider[] = [new BaileysWhatsAppProvider()];
+    const chat = ChatProviderFactory.create();
+    logger.info(`Using ${chat.platform} chat provider`);
+
     const messageHandler = new MessageHandler(llmProvider, allowList);
+    chat.onMessage((message) => messageHandler.handle(message, chat));
 
-    for (const chat of chatProviders) {
-        chat.onMessage((message) => messageHandler.handle(message, chat));
-
-        logger.debug(`Connecting ${chat.platform}...`);
-        await chat.connect();
-    }
+    logger.debug('Connecting...');
+    await chat.connect();
 
     process.once('SIGINT', async () => {
-        await Promise.all(chatProviders.map((chat) => chat.disconnect()));
+        await chat.disconnect();
         process.exit(0);
     });
 
