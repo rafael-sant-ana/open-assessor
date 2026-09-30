@@ -1,5 +1,5 @@
 export interface MessageContext {
-    chatJid: string;
+    chatId: string;
     messageId: string;
 }
 

@@ -2,7 +2,10 @@ import PinoLogger from '../../infrastructure/logging/PinoLogger.js';
 import type { Level } from 'pino';
 import type { Message } from '../../domain/messages/Message.js';
 import type { LLMProvider } from '../../providers/LLMProvider.js';
-import type { WhatsAppProvider } from '../../providers/WhatsAppProvider.js';
+import type { ChatProvider } from '../../providers/ChatProvider.js';
+import type AllowList from '../security/AllowList.js';
+
+const WHOAMI_COMMANDS = new Set(['/meu-id', '/meu-jid']);
 
 export default class MessageHandler {
     private logger: PinoLogger = new PinoLogger(
@@ -11,57 +14,55 @@ export default class MessageHandler {
     );
 
     constructor(
-        private readonly whatsapp: WhatsAppProvider,
         private readonly llm: LLMProvider,
+        private readonly allowList: AllowList,
     ) {}
 
-    async handle(message: Message): Promise<void> {
-        await this.whatsapp.sendPresenceUpdate('composing', message.chatJid);
+    async handle(message: Message, chat: ChatProvider): Promise<void> {
+        const context = { chatId: message.chatId, messageId: message.id };
 
-        this.logger.debug('Generating response', {
-            chatJid: message.chatJid,
-            messageId: message.id,
-        });
-        const response = await this.llm
-            .generateResponse(message.chatJid, message.content)
-            .catch((err: Error) => {
-                this.logger.error('Failed to generate response', {
-                    chatJid: message.chatJid,
-                    messageId: message.id,
-                });
-                console.error(err);
-            });
-
-        if (response === undefined) {
-            await this.whatsapp
-                .sendMessage(
-                    message.chatJid,
-                    'Desculpe, houve um erro interno ao tentar processar sua mensagem.',
-                )
-                .catch((err: Error) => {
-                    this.logger.error('Failed to send message response', {
-                        chatJid: message.chatJid,
-                        messageId: message.id,
-                    });
-                    console.error(err);
-                })
-                .finally(async () => {
-                    await this.whatsapp.sendPresenceUpdate(
-                        'paused',
-                        message.chatJid,
-                    );
-                });
+        if (WHOAMI_COMMANDS.has(message.content.trim().toLowerCase())) {
+            await this.reply(chat, message, `Seu ID é:\n> ${message.author.id}`);
             return;
         }
 
-        await this.whatsapp
-            .sendMessage(message.chatJid, response)
-            .catch((err: Error) => {
-                this.logger.error('Failed to send message response', {
-                    chatJid: message.chatJid,
-                    messageId: message.id,
+        if (!this.allowList.isAllowed(message.platform, message.author)) {
+            this.logger.debug('Ignoring message from unauthorized user', context);
+            return;
+        }
+
+        await chat.sendTyping(message.chatId, true);
+
+        try {
+            this.logger.debug('Generating response', context);
+            const response = await this.llm
+                .generateResponse(
+                    `${message.platform}:${message.chatId}`,
+                    message.content,
+                )
+                .catch((err: Error) => {
+                    this.logger.error('Failed to generate response', context);
+                    console.error(err);
                 });
-                console.error(err);
+
+            await this.reply(
+                chat,
+                message,
+                response ??
+                    'Desculpe, houve um erro interno ao tentar processar sua mensagem.',
+            );
+        } finally {
+            await chat.sendTyping(message.chatId, false).catch(() => {});
+        }
+    }
+
+    private async reply(chat: ChatProvider, message: Message, text: string) {
+        await chat.sendMessage(message.chatId, text).catch((err: Error) => {
+            this.logger.error('Failed to send message response', {
+                chatId: message.chatId,
+                messageId: message.id,
             });
+            console.error(err);
+        });
     }
 }
