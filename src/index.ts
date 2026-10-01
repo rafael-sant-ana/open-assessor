@@ -20,7 +20,7 @@ import AddExpenseTool from './application/tools/AddExpenseTool.js';
 import ListExpensesTool from './application/tools/ListExpensesTool.js';
 import GetCurrentDateTool from './application/tools/GetCurrentDateTool.js';
 import { DEFAULT_TIMEZONE } from './domain/dates.js';
-import InMemoryExpenseRepository from './infrastructure/expenses/InMemoryExpenseRepository.js';
+import ExpenseRepositoryFactory from './infrastructure/expenses/ExpenseRepositoryFactory.js';
 import LLMProviderFactory from './infrastructure/llm/LLMProviderFactory.js';
 import ChatProviderFactory from './infrastructure/chat/ChatProviderFactory.js';
 
@@ -31,8 +31,16 @@ async function main() {
     );
 
     logger.debug('Initializing...');
-    // TODO: swap for the Google Sheets repository; expenses are lost on restart.
-    const expenses = new InMemoryExpenseRepository();
+    const {
+        name: storageName,
+        persistent,
+        repository: expenses,
+    } = await ExpenseRepositoryFactory.create();
+    if (persistent) logger.info(`Using ${storageName} expense storage`);
+    else
+        logger.warn(
+            'SPREADSHEET_ID is not set: expenses are kept in memory and lost on restart',
+        );
     const clock = () => new Date();
     const timezone = process.env.TIMEZONE ?? DEFAULT_TIMEZONE;
 

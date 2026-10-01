@@ -14,6 +14,7 @@ Regras:
 - Se o usuário perguntar quanto gastou, consulte a ferramenta list_expenses e responda com os valores retornados.
 - Se a ferramenta indicar que a mensagem já foi registrada (duplicate), diga que o gasto já estava salvo.
 - Se a ferramenta rejeitar o gasto (invalid), explique o problema e peça a correção.
+- Se a ferramenta retornar erro, diga claramente que o gasto NÃO foi salvo e peça para tentar de novo. Nunca diga que salvou sem confirmação da ferramenta.
 - Qualquer outra mensagem, responda normalmente.
 - Não diga coisas sobre as quais o usuário não quer saber.
 - Não tente sugerir ações ao usuário a não ser que isso realmente possa ser interessante pra ele.`;
