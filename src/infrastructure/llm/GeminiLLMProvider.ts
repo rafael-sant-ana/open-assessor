@@ -1,7 +1,13 @@
-import { GoogleGenAI, Chat, type Part } from '@google/genai';
+import {
+    GoogleGenAI,
+    Chat,
+    type GenerateContentConfig,
+    type Part,
+} from '@google/genai';
 import type { LLMProvider } from '../../providers/LLMProvider.js';
-import type { Tool } from '../../providers/Tool.js';
+import type { Tool, ToolContext } from '../../providers/Tool.js';
 import { MAX_TOOL_ROUNDS, runTool } from './runTool.js';
+import { SYSTEM_PROMPT } from './systemPrompt.js';
 
 export default class GeminiLLMProvider implements LLMProvider {
     private client: GoogleGenAI;
@@ -26,39 +32,17 @@ export default class GeminiLLMProvider implements LLMProvider {
         });
     }
 
-    async generateResponse(chatId: string, message: string) {
+    async generateResponse(
+        chatId: string,
+        message: string,
+        context: ToolContext,
+    ) {
         let chat = this.conversations.get(chatId);
 
         if (chat === undefined) {
             chat = this.client.chats.create({
                 model: process.env.GEMINI_MODEL ?? 'gemini-3.6-flash',
-                config: {
-                    systemInstruction: `
-Você é um assistente financeiro de WhatsApp, chamado Open Assessor.
-
-Regras:
-- Responda sempre em português.
-- Seja direto e objetivo.
-- Classifique as mensagens do usuário como gasto ou não.
-- Se for um gasto, você apenas deve registrá-lo.
-- Não diga coisas sobre as quais o usuário não quer saber.
-- Não tente sugerir ações ao usuário a não ser que isso realmente possa ser interessante pra ele.
-- Use as ferramentas disponíveis sempre que forem aplicáveis à mensagem do usuário.`,
-                    ...(this.tools.length > 0 && {
-                        tools: [
-                            {
-                                functionDeclarations: this.tools.map(
-                                    (tool) => ({
-                                        name: tool.name,
-                                        description: tool.description,
-                                        parametersJsonSchema: tool.parameters,
-                                    }),
-                                ),
-                            },
-                        ],
-                        automaticFunctionCalling: { disable: true },
-                    }),
-                },
+                config: this.buildConfig(),
             });
 
             //  TODO: Cuidar para limpar chats não utilizados durante muito tempo (possível vazamento de memória)
@@ -83,6 +67,7 @@ Regras:
                     this.tools,
                     name,
                     call.args ?? {},
+                    context,
                 );
                 parts.push({
                     functionResponse: {
@@ -100,5 +85,23 @@ Regras:
             throw new Error('Failed to generate response: empty body');
 
         return response.text;
+    }
+
+    private buildConfig(): GenerateContentConfig {
+        return {
+            systemInstruction: SYSTEM_PROMPT,
+            ...(this.tools.length > 0 && {
+                tools: [
+                    {
+                        functionDeclarations: this.tools.map((tool) => ({
+                            name: tool.name,
+                            description: tool.description,
+                            parametersJsonSchema: tool.parameters,
+                        })),
+                    },
+                ],
+                automaticFunctionCalling: { disable: true },
+            }),
+        };
     }
 }

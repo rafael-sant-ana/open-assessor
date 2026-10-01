@@ -1,4 +1,4 @@
-import type { Tool } from '../../providers/Tool.js';
+import type { Tool, ToolContext } from '../../providers/Tool.js';
 
 /** Upper bound of model → tool → model round trips for a single user message. */
 export const MAX_TOOL_ROUNDS = 5;
@@ -13,12 +13,13 @@ export async function runTool(
     tools: readonly Tool[],
     name: string,
     args: Record<string, unknown>,
+    context: ToolContext,
 ): Promise<ToolResult> {
     const tool = tools.find((t) => t.name === name);
     if (!tool) return { output: `Unknown tool: ${name}`, isError: true };
 
     try {
-        return { output: await tool.execute(args), isError: false };
+        return { output: await tool.execute(args, context), isError: false };
     } catch (err) {
         console.error(err);
         return {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 import type OpenAI from 'openai';
 import OpenAILLMProvider from './OpenAILLMProvider.js';
-import HelloWorldTool from '../../application/tools/HelloWorldTool.js';
+import { ctx, GreeterTool } from './testFixtures.js';
 import type { Tool } from '../../providers/Tool.js';
 
 type OutputItem = {
@@ -68,7 +68,7 @@ describe('OpenAILLMProvider', () => {
     it('returns the output text without a previous response id at first', async () => {
         const { provider, requestAt } = setup();
 
-        assert.equal(await provider.generateResponse('chat', 'oi'), 'reply 1');
+        assert.equal(await provider.generateResponse('chat', 'oi', ctx), 'reply 1');
         assert.equal(requestAt(0).input, 'oi');
         assert.equal('previous_response_id' in requestAt(0), false);
     });
@@ -76,8 +76,8 @@ describe('OpenAILLMProvider', () => {
     it('chains the previous response id on the next call', async () => {
         const { provider, requestAt } = setup();
 
-        await provider.generateResponse('chat', 'q1');
-        await provider.generateResponse('chat', 'q2');
+        await provider.generateResponse('chat', 'q1', ctx);
+        await provider.generateResponse('chat', 'q2', ctx);
 
         assert.equal(requestAt(1).previous_response_id, 'resp_1');
     });
@@ -85,8 +85,8 @@ describe('OpenAILLMProvider', () => {
     it('does not share response ids between chats', async () => {
         const { provider, requestAt } = setup();
 
-        await provider.generateResponse('chat-a', 'a');
-        await provider.generateResponse('chat-b', 'b');
+        await provider.generateResponse('chat-a', 'a', ctx);
+        await provider.generateResponse('chat-b', 'b', ctx);
 
         assert.equal('previous_response_id' in requestAt(1), false);
     });
@@ -95,7 +95,7 @@ describe('OpenAILLMProvider', () => {
         const { provider, requestAt } = setup();
 
         process.env.OPENAI_MODEL = 'custom-model';
-        await provider.generateResponse('chat', 'x');
+        await provider.generateResponse('chat', 'x', ctx);
 
         assert.equal(requestAt(0).model, 'custom-model');
     });
@@ -104,43 +104,40 @@ describe('OpenAILLMProvider', () => {
         it('does not send a tools field when none are configured', async () => {
             const { provider, requestAt } = setup();
 
-            await provider.generateResponse('chat', 'oi');
+            await provider.generateResponse('chat', 'oi', ctx);
 
             assert.equal('tools' in requestAt(0), false);
         });
 
         it('runs the requested tool and sends its output back', async () => {
             const { provider, requestAt } = setup(
-                [[functionCall('hello_world', { name: 'Rafa' })]],
-                [new HelloWorldTool()],
+                [[functionCall('greet', { name: 'Rafa' })]],
+                [new GreeterTool()],
             );
 
-            const reply = await provider.generateResponse(
-                'chat',
-                'hello world',
-            );
+            const reply = await provider.generateResponse('chat', 'hello world', ctx);
 
             assert.equal(reply, 'reply 2');
-            assert.equal(requestAt(0).tools?.[0]?.name, 'hello_world');
+            assert.equal(requestAt(0).tools?.[0]?.name, 'greet');
             assert.equal(requestAt(0).tools?.[0]?.type, 'function');
             assert.equal(requestAt(1).previous_response_id, 'resp_1');
             assert.deepEqual(requestAt(1).input, [
                 {
                     type: 'function_call_output',
                     call_id: 'call_1',
-                    output: 'Hello, Rafa! (sent by the hello_world tool)',
+                    output: 'Hello, Rafa!',
                 },
             ]);
         });
 
         it('chains the next user message to the final response, not the tool round', async () => {
             const { provider, requestAt } = setup(
-                [[functionCall('hello_world', {})]],
-                [new HelloWorldTool()],
+                [[functionCall('greet', {})]],
+                [new GreeterTool()],
             );
 
-            await provider.generateResponse('chat', 'hello world');
-            await provider.generateResponse('chat', 'obrigado');
+            await provider.generateResponse('chat', 'hello world', ctx);
+            await provider.generateResponse('chat', 'obrigado', ctx);
 
             assert.equal(requestAt(2).previous_response_id, 'resp_2');
         });
@@ -151,18 +148,18 @@ describe('OpenAILLMProvider', () => {
                     [
                         {
                             type: 'function_call',
-                            name: 'hello_world',
+                            name: 'greet',
                             call_id: 'c',
                             arguments: '{oops',
                         },
                     ],
                 ],
-                [new HelloWorldTool()],
+                [new GreeterTool()],
             );
 
-            await provider.generateResponse('chat', 'x');
+            await provider.generateResponse('chat', 'x', ctx);
 
-            assert.equal(requestAt(1).input[0].output, 'Hello, World! (sent by the hello_world tool)');
+            assert.equal(requestAt(1).input[0].output, 'Hello, World!');
         });
 
         it('reports a failing tool to the model instead of throwing', async () => {
@@ -180,22 +177,40 @@ describe('OpenAILLMProvider', () => {
             );
 
             assert.equal(
-                await provider.generateResponse('chat', 'x'),
+                await provider.generateResponse('chat', 'x', ctx),
                 'reply 2',
             );
             assert.equal(requestAt(1).input[0].output, 'boom');
         });
 
+        it('passes the message context to the tool', async () => {
+            const seen: unknown[] = [];
+            const spy: Tool = {
+                name: 'spy',
+                description: 'records its context',
+                parameters: { type: 'object', properties: {} },
+                execute: async (_args, context) => {
+                    seen.push(context);
+                    return 'ok';
+                },
+            };
+            const { provider } = setup([[functionCall('spy', {})]], [spy]);
+
+            await provider.generateResponse('chat', 'x', ctx);
+
+            assert.deepEqual(seen, [ctx]);
+        });
+
         it('gives up after too many tool rounds', async () => {
             const { provider } = setup(
                 Array.from({ length: 10 }, () => [
-                    functionCall('hello_world', {}),
+                    functionCall('greet', {}),
                 ]),
-                [new HelloWorldTool()],
+                [new GreeterTool()],
             );
 
             await assert.rejects(
-                provider.generateResponse('chat', 'x'),
+                provider.generateResponse('chat', 'x', ctx),
                 /tool rounds/,
             );
         });

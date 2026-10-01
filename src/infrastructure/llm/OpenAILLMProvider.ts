@@ -1,12 +1,9 @@
 import OpenAI from 'openai';
 import type { ResponseInputItem } from 'openai/resources/responses/responses.js';
 import type { LLMProvider } from '../../providers/LLMProvider.js';
-import type { Tool } from '../../providers/Tool.js';
+import type { Tool, ToolContext } from '../../providers/Tool.js';
 import { MAX_TOOL_ROUNDS, runTool } from './runTool.js';
-
-const INSTRUCTIONS =
-    'Você é um assistente financeiro de WhatsApp, chamado de Open Assessor. ' +
-    'Use as ferramentas disponíveis sempre que forem aplicáveis à mensagem do usuário.';
+import { SYSTEM_PROMPT } from './systemPrompt.js';
 
 function parseArguments(raw: string): Record<string, unknown> {
     try {
@@ -42,14 +39,18 @@ export default class OpenAILLMProvider implements LLMProvider {
         });
     }
 
-    async generateResponse(chatId: string, message: string) {
+    async generateResponse(
+        chatId: string,
+        message: string,
+        context: ToolContext,
+    ) {
         let previousId = this.conversations.get(chatId);
         let input: string | ResponseInputItem[] = message;
 
         for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
             const response = await this.client.responses.create({
                 model: process.env.OPENAI_MODEL ?? 'gpt-5.6-luna',
-                instructions: INSTRUCTIONS,
+                instructions: SYSTEM_PROMPT,
                 ...(previousId && {
                     previous_response_id: previousId,
                 }),
@@ -80,6 +81,7 @@ export default class OpenAILLMProvider implements LLMProvider {
                     this.tools,
                     call.name,
                     parseArguments(call.arguments),
+                    context,
                 );
                 input.push({
                     type: 'function_call_output',

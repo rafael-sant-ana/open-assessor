@@ -39,6 +39,10 @@ export default class MessageHandler {
                 .generateResponse(
                     `${message.platform}:${message.chatId}`,
                     message.content,
+                    {
+                        userId: `${message.platform}:${message.author.id}`,
+                        messageKey: `${message.platform}:${message.chatId}:${message.id}`,
+                    },
                 )
                 .catch((err: Error) => {
                     this.logger.error('Failed to generate response', context);

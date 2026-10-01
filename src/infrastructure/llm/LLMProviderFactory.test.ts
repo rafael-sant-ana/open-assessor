@@ -4,7 +4,7 @@ import LLMProviderFactory from './LLMProviderFactory.js';
 import OpenAILLMProvider from './OpenAILLMProvider.js';
 import ClaudeLLMProvider from './ClaudeLLMProvider.js';
 import GeminiLLMProvider from './GeminiLLMProvider.js';
-import HelloWorldTool from '../../application/tools/HelloWorldTool.js';
+import { GreeterTool } from './testFixtures.js';
 import type { Tool } from '../../providers/Tool.js';
 
 const KEYS = ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY'];
@@ -71,11 +71,11 @@ describe('LLMProviderFactory', () => {
     it('passes the tools on to the created provider', async () => {
         process.env.ANTHROPIC_API_KEY = 'anthropic-key';
 
-        const { provider } = LLMProviderFactory.create([new HelloWorldTool()]);
+        const { provider } = LLMProviderFactory.create([new GreeterTool()]);
 
         assert.deepEqual(
             (provider as unknown as { tools: Tool[] }).tools.map((t) => t.name),
-            ['hello_world'],
+            ['greet'],
         );
     });
 

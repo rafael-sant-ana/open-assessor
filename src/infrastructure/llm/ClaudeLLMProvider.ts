@@ -1,21 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { LLMProvider } from '../../providers/LLMProvider.js';
-import type { Tool } from '../../providers/Tool.js';
+import type { Tool, ToolContext } from '../../providers/Tool.js';
 import { MAX_TOOL_ROUNDS, runTool } from './runTool.js';
+import { SYSTEM_PROMPT } from './systemPrompt.js';
 
 const MAX_HISTORY_MESSAGES = 20;
-
-const SYSTEM_PROMPT = `
-Você é um assistente financeiro de WhatsApp, chamado Open Assessor.
-
-Regras:
-- Responda sempre em português.
-- Seja direto e objetivo.
-- Classifique as mensagens do usuário como gasto ou não.
-- Se for um gasto, você apenas deve registrá-lo.
-- Não diga coisas sobre as quais o usuário não quer saber.
-- Não tente sugerir ações ao usuário a não ser que isso realmente possa ser interessante pra ele.
-- Use as ferramentas disponíveis sempre que forem aplicáveis à mensagem do usuário.`;
 
 export default class ClaudeLLMProvider implements LLMProvider {
     private client: Anthropic;
@@ -41,7 +30,11 @@ export default class ClaudeLLMProvider implements LLMProvider {
         });
     }
 
-    async generateResponse(chatId: string, message: string) {
+    async generateResponse(
+        chatId: string,
+        message: string,
+        context: ToolContext,
+    ) {
         const history = this.conversations.get(chatId) ?? [];
         const messages: Anthropic.MessageParam[] = [
             ...history,
@@ -96,6 +89,7 @@ export default class ClaudeLLMProvider implements LLMProvider {
                     this.tools,
                     toolUse.name,
                     (toolUse.input ?? {}) as Record<string, unknown>,
+                    context,
                 );
                 results.push({
                     type: 'tool_result',

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 import type Anthropic from '@anthropic-ai/sdk';
 import ClaudeLLMProvider from './ClaudeLLMProvider.js';
-import HelloWorldTool from '../../application/tools/HelloWorldTool.js';
+import { ctx, GreeterTool } from './testFixtures.js';
 import type { Tool } from '../../providers/Tool.js';
 
 type Block = {
@@ -72,7 +72,7 @@ describe('ClaudeLLMProvider', () => {
     it('returns the reply text and sends the user message', async () => {
         const { provider, requestAt } = setup(text('olá'));
 
-        assert.equal(await provider.generateResponse('chat', 'oi'), 'olá');
+        assert.equal(await provider.generateResponse('chat', 'oi', ctx), 'olá');
         assert.deepEqual(requestAt(0).messages, [
             { role: 'user', content: 'oi' },
         ]);
@@ -81,8 +81,8 @@ describe('ClaudeLLMProvider', () => {
     it('sends the previous turns on the next call', async () => {
         const { provider, requestAt } = setup(text('a1'), text('a2'));
 
-        await provider.generateResponse('chat', 'q1');
-        await provider.generateResponse('chat', 'q2');
+        await provider.generateResponse('chat', 'q1', ctx);
+        await provider.generateResponse('chat', 'q2', ctx);
 
         assert.deepEqual(requestAt(1).messages, [
             { role: 'user', content: 'q1' },
@@ -94,8 +94,8 @@ describe('ClaudeLLMProvider', () => {
     it('keeps conversations isolated per chat', async () => {
         const { provider, requestAt } = setup(text('a1'), text('b1'));
 
-        await provider.generateResponse('chat-a', 'from a');
-        await provider.generateResponse('chat-b', 'from b');
+        await provider.generateResponse('chat-a', 'from a', ctx);
+        await provider.generateResponse('chat-b', 'from b', ctx);
 
         assert.deepEqual(requestAt(1).messages, [
             { role: 'user', content: 'from b' },
@@ -109,17 +109,17 @@ describe('ClaudeLLMProvider', () => {
             { type: 'text', text: 'bar' },
         ]);
 
-        assert.equal(await provider.generateResponse('chat', 'x'), 'foobar');
+        assert.equal(await provider.generateResponse('chat', 'x', ctx), 'foobar');
     });
 
     it('throws on an empty reply without storing the turn', async () => {
         const { provider, requestAt } = setup([], text('fine'));
 
         await assert.rejects(
-            provider.generateResponse('chat', 'lost'),
+            provider.generateResponse('chat', 'lost', ctx),
             /empty body/,
         );
-        await provider.generateResponse('chat', 'next');
+        await provider.generateResponse('chat', 'next', ctx);
 
         assert.deepEqual(requestAt(1).messages, [
             { role: 'user', content: 'next' },
@@ -129,8 +129,8 @@ describe('ClaudeLLMProvider', () => {
     it('does not store the turn when the API call fails', async () => {
         const { provider, requestAt } = setup(new Error('429'), text('fine'));
 
-        await assert.rejects(provider.generateResponse('chat', 'lost'), /429/);
-        await provider.generateResponse('chat', 'next');
+        await assert.rejects(provider.generateResponse('chat', 'lost', ctx), /429/);
+        await provider.generateResponse('chat', 'next', ctx);
 
         assert.deepEqual(requestAt(1).messages, [
             { role: 'user', content: 'next' },
@@ -141,8 +141,8 @@ describe('ClaudeLLMProvider', () => {
         const { provider, requestAt } = setup();
 
         for (let i = 0; i < 12; i++)
-            await provider.generateResponse('chat', `q${i}`);
-        await provider.generateResponse('chat', 'last');
+            await provider.generateResponse('chat', `q${i}`, ctx);
+        await provider.generateResponse('chat', 'last', ctx);
 
         const { messages } = requestAt(12);
         // 20 stored messages + the new user message
@@ -154,9 +154,9 @@ describe('ClaudeLLMProvider', () => {
     it('uses ANTHROPIC_MODEL when set and a default otherwise', async () => {
         const { provider, requestAt } = setup();
 
-        await provider.generateResponse('chat', 'a');
+        await provider.generateResponse('chat', 'a', ctx);
         process.env.ANTHROPIC_MODEL = 'custom-model';
-        await provider.generateResponse('chat', 'b');
+        await provider.generateResponse('chat', 'b', ctx);
 
         assert.equal(requestAt(0).model, 'claude-haiku-4-5-20251001');
         assert.equal(requestAt(1).model, 'custom-model');
@@ -165,25 +165,22 @@ describe('ClaudeLLMProvider', () => {
         it('does not send a tools field when none are configured', async () => {
             const { provider, requestAt } = setup();
 
-            await provider.generateResponse('chat', 'oi');
+            await provider.generateResponse('chat', 'oi', ctx);
 
             assert.equal('tools' in requestAt(0), false);
         });
 
         it('runs the requested tool and returns the final reply', async () => {
             const { provider, requestAt } = setupWithTools(
-                [new HelloWorldTool()],
-                toolUse('hello_world', { name: 'Rafa' }),
+                [new GreeterTool()],
+                toolUse('greet', { name: 'Rafa' }),
                 text('Olá, Rafa!'),
             );
 
-            const reply = await provider.generateResponse(
-                'chat',
-                'hello world, sou o Rafa',
-            );
+            const reply = await provider.generateResponse('chat', 'hello world, sou o Rafa', ctx);
 
             assert.equal(reply, 'Olá, Rafa!');
-            assert.equal(requestAt(1).tools?.[0]?.name, 'hello_world');
+            assert.equal(requestAt(1).tools?.[0]?.name, 'greet');
             const [, assistant, result] = requestAt(1).messages;
             assert.equal(assistant!.role, 'assistant');
             assert.deepEqual(result, {
@@ -192,7 +189,7 @@ describe('ClaudeLLMProvider', () => {
                     {
                         type: 'tool_result',
                         tool_use_id: 'tu_1',
-                        content: 'Hello, Rafa! (sent by the hello_world tool)',
+                        content: 'Hello, Rafa!',
                     },
                 ],
             });
@@ -213,7 +210,7 @@ describe('ClaudeLLMProvider', () => {
                 text('desculpe'),
             );
 
-            assert.equal(await provider.generateResponse('chat', 'x'), 'desculpe');
+            assert.equal(await provider.generateResponse('chat', 'x', ctx), 'desculpe');
             const result = requestAt(1).messages[2]!.content[0];
             assert.equal(result.is_error, true);
             assert.equal(result.content, 'boom');
@@ -226,32 +223,50 @@ describe('ClaudeLLMProvider', () => {
                 text('ok'),
             );
 
-            await provider.generateResponse('chat', 'x');
+            await provider.generateResponse('chat', 'x', ctx);
 
             assert.equal(requestAt(1).messages[2]!.content[0].is_error, true);
         });
 
+        it('passes the message context to the tool', async () => {
+            const seen: unknown[] = [];
+            const spy: Tool = {
+                name: 'spy',
+                description: 'records its context',
+                parameters: { type: 'object', properties: {} },
+                execute: async (_args, context) => {
+                    seen.push(context);
+                    return 'ok';
+                },
+            };
+            const { provider } = setupWithTools([spy], toolUse('spy', {}), text('ok'));
+
+            await provider.generateResponse('chat', 'x', ctx);
+
+            assert.deepEqual(seen, [ctx]);
+        });
+
         it('gives up after too many tool rounds', async () => {
             const { provider } = setupWithTools(
-                [new HelloWorldTool()],
-                ...Array.from({ length: 10 }, () => toolUse('hello_world', {})),
+                [new GreeterTool()],
+                ...Array.from({ length: 10 }, () => toolUse('greet', {})),
             );
 
             await assert.rejects(
-                provider.generateResponse('chat', 'x'),
+                provider.generateResponse('chat', 'x', ctx),
                 /tool rounds/,
             );
         });
 
         it('never starts the history on an orphaned tool_result', async () => {
             const { provider, requestAt, create } = setupWithTools(
-                [new HelloWorldTool()],
-                toolUse('hello_world', {}),
+                [new GreeterTool()],
+                toolUse('greet', {}),
             );
 
-            await provider.generateResponse('chat', 'hello world');
+            await provider.generateResponse('chat', 'hello world', ctx);
             for (let i = 0; i < 12; i++)
-                await provider.generateResponse('chat', `q${i}`);
+                await provider.generateResponse('chat', `q${i}`, ctx);
 
             for (let n = 0; n < create.mock.callCount(); n++) {
                 const first = requestAt(n).messages[0]!;

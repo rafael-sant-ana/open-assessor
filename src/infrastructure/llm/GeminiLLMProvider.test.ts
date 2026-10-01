@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 import type { GoogleGenAI } from '@google/genai';
 import GeminiLLMProvider from './GeminiLLMProvider.js';
-import HelloWorldTool from '../../application/tools/HelloWorldTool.js';
+import { ctx, GreeterTool } from './testFixtures.js';
 import type { Tool } from '../../providers/Tool.js';
 
 type Reply =
@@ -61,7 +61,7 @@ describe('GeminiLLMProvider', () => {
     it('sends the message and returns the reply text', async () => {
         const { provider, sendMessage } = setup('olá');
 
-        assert.equal(await provider.generateResponse('chat', 'oi'), 'olá');
+        assert.equal(await provider.generateResponse('chat', 'oi', ctx), 'olá');
         assert.deepEqual(sendMessage.mock.calls[0]!.arguments[0], {
             message: 'oi',
         });
@@ -70,8 +70,8 @@ describe('GeminiLLMProvider', () => {
     it('reuses the same chat for the same chatId', async () => {
         const { provider, createChat } = setup();
 
-        await provider.generateResponse('chat', 'q1');
-        await provider.generateResponse('chat', 'q2');
+        await provider.generateResponse('chat', 'q1', ctx);
+        await provider.generateResponse('chat', 'q2', ctx);
 
         assert.equal(createChat.mock.callCount(), 1);
     });
@@ -79,8 +79,8 @@ describe('GeminiLLMProvider', () => {
     it('creates a separate chat per chatId', async () => {
         const { provider, createChat } = setup();
 
-        await provider.generateResponse('chat-a', 'a');
-        await provider.generateResponse('chat-b', 'b');
+        await provider.generateResponse('chat-a', 'a', ctx);
+        await provider.generateResponse('chat-b', 'b', ctx);
 
         assert.equal(createChat.mock.callCount(), 2);
     });
@@ -89,7 +89,7 @@ describe('GeminiLLMProvider', () => {
         const { provider, createChat } = setup();
 
         process.env.GEMINI_MODEL = 'custom-model';
-        await provider.generateResponse('chat', 'x');
+        await provider.generateResponse('chat', 'x', ctx);
 
         const config = createChat.mock.calls[0]!.arguments[0] as {
             model: string;
@@ -101,7 +101,7 @@ describe('GeminiLLMProvider', () => {
         const { provider } = setup(undefined);
 
         await assert.rejects(
-            provider.generateResponse('chat', 'x'),
+            provider.generateResponse('chat', 'x', ctx),
             /empty body/,
         );
     });
@@ -110,7 +110,7 @@ describe('GeminiLLMProvider', () => {
         it('does not declare tools when none are configured', async () => {
             const { provider, createChat } = setup();
 
-            await provider.generateResponse('chat', 'oi');
+            await provider.generateResponse('chat', 'oi', ctx);
 
             const { config } = createChat.mock.calls[0]!.arguments[0] as {
                 config: Record<string, unknown>;
@@ -120,15 +120,12 @@ describe('GeminiLLMProvider', () => {
 
         it('declares tools and sends the function response back', async () => {
             const { provider, createChat, sendMessage } = setupWithTools(
-                [new HelloWorldTool()],
-                call('hello_world', { name: 'Rafa' }),
+                [new GreeterTool()],
+                call('greet', { name: 'Rafa' }),
                 'Olá, Rafa!',
             );
 
-            const reply = await provider.generateResponse(
-                'chat',
-                'hello world',
-            );
+            const reply = await provider.generateResponse('chat', 'hello world', ctx);
 
             assert.equal(reply, 'Olá, Rafa!');
             const { config } = createChat.mock.calls[0]!.arguments[0] as {
@@ -140,15 +137,15 @@ describe('GeminiLLMProvider', () => {
             };
             assert.equal(
                 config.tools[0]!.functionDeclarations[0]!.name,
-                'hello_world',
+                'greet',
             );
             assert.deepEqual(sendMessage.mock.calls[1]!.arguments[0], {
                 message: [
                     {
                         functionResponse: {
                             id: 'fc_1',
-                            name: 'hello_world',
-                            response: { output: 'Hello, Rafa! (sent by the hello_world tool)' },
+                            name: 'greet',
+                            response: { output: 'Hello, Rafa!' },
                         },
                     },
                 ],
@@ -171,7 +168,7 @@ describe('GeminiLLMProvider', () => {
             );
 
             assert.equal(
-                await provider.generateResponse('chat', 'x'),
+                await provider.generateResponse('chat', 'x', ctx),
                 'desculpe',
             );
             const sent = sendMessage.mock.calls[1]!.arguments[0] as {
@@ -182,14 +179,32 @@ describe('GeminiLLMProvider', () => {
             });
         });
 
+        it('passes the message context to the tool', async () => {
+            const seen: unknown[] = [];
+            const spy: Tool = {
+                name: 'spy',
+                description: 'records its context',
+                parameters: { type: 'object', properties: {} },
+                execute: async (_args, context) => {
+                    seen.push(context);
+                    return 'ok';
+                },
+            };
+            const { provider } = setupWithTools([spy], call('spy'), 'ok');
+
+            await provider.generateResponse('chat', 'x', ctx);
+
+            assert.deepEqual(seen, [ctx]);
+        });
+
         it('gives up after too many tool rounds', async () => {
             const { provider } = setupWithTools(
-                [new HelloWorldTool()],
-                ...Array.from({ length: 10 }, () => call('hello_world')),
+                [new GreeterTool()],
+                ...Array.from({ length: 10 }, () => call('greet')),
             );
 
             await assert.rejects(
-                provider.generateResponse('chat', 'x'),
+                provider.generateResponse('chat', 'x', ctx),
                 /tool rounds/,
             );
         });
