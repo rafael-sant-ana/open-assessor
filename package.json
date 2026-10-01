@@ -36,6 +36,7 @@
     "dependencies": {
         "@anthropic-ai/sdk": "^0.129.0",
         "@google/genai": "^2.22.0",
+        "@googleapis/sheets": "^18.0.1",
         "@whiskeysockets/baileys": "^7.0.0-rc14",
         "dotenv": "^17.4.2",
         "grammy": "^1.46.0",
