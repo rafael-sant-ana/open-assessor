@@ -2,10 +2,25 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 import type Anthropic from '@anthropic-ai/sdk';
 import ClaudeLLMProvider from './ClaudeLLMProvider.js';
+import HelloWorldTool from '../../application/tools/HelloWorldTool.js';
+import type { Tool } from '../../providers/Tool.js';
 
-type Block = { type: string; text?: string };
+type Block = {
+    type: string;
+    text?: string;
+    id?: string;
+    name?: string;
+    input?: unknown;
+};
 
 function setup(...replies: Array<Block[] | Error>) {
+    return setupWithTools([], ...replies);
+}
+
+function setupWithTools(
+    tools: Tool[],
+    ...replies: Array<Block[] | Error>
+) {
     const create = mock.fn(async (..._args: unknown[]) => {
         const reply = replies.shift() ?? [{ type: 'text', text: 'ok' }];
         if (reply instanceof Error) throw reply;
@@ -15,13 +30,21 @@ function setup(...replies: Array<Block[] | Error>) {
     const requestAt = (n: number) =>
         create.mock.calls[n]!.arguments[0] as {
             model: string;
-            messages: Array<{ role: string; content: string }>;
+            messages: Array<{ role: string; content: any }>;
+            tools?: Array<{ name: string; input_schema: unknown }>;
         };
 
-    return { provider: new ClaudeLLMProvider(client), create, requestAt };
+    return {
+        provider: new ClaudeLLMProvider(client, tools),
+        create,
+        requestAt,
+    };
 }
 
 const text = (t: string): Block[] => [{ type: 'text', text: t }];
+const toolUse = (name: string, input: unknown, id = 'tu_1'): Block[] => [
+    { type: 'tool_use', id, name, input },
+];
 
 describe('ClaudeLLMProvider', () => {
     let originalKey: string | undefined;
@@ -137,5 +160,104 @@ describe('ClaudeLLMProvider', () => {
 
         assert.equal(requestAt(0).model, 'claude-haiku-4-5-20251001');
         assert.equal(requestAt(1).model, 'custom-model');
+    });
+    describe('tools', () => {
+        it('does not send a tools field when none are configured', async () => {
+            const { provider, requestAt } = setup();
+
+            await provider.generateResponse('chat', 'oi');
+
+            assert.equal('tools' in requestAt(0), false);
+        });
+
+        it('runs the requested tool and returns the final reply', async () => {
+            const { provider, requestAt } = setupWithTools(
+                [new HelloWorldTool()],
+                toolUse('hello_world', { name: 'Rafa' }),
+                text('Olá, Rafa!'),
+            );
+
+            const reply = await provider.generateResponse(
+                'chat',
+                'hello world, sou o Rafa',
+            );
+
+            assert.equal(reply, 'Olá, Rafa!');
+            assert.equal(requestAt(1).tools?.[0]?.name, 'hello_world');
+            const [, assistant, result] = requestAt(1).messages;
+            assert.equal(assistant!.role, 'assistant');
+            assert.deepEqual(result, {
+                role: 'user',
+                content: [
+                    {
+                        type: 'tool_result',
+                        tool_use_id: 'tu_1',
+                        content: 'Hello, Rafa! (sent by the hello_world tool)',
+                    },
+                ],
+            });
+        });
+
+        it('reports a failing tool to the model instead of throwing', async () => {
+            const broken: Tool = {
+                name: 'broken',
+                description: 'always fails',
+                parameters: { type: 'object', properties: {} },
+                execute: async () => {
+                    throw new Error('boom');
+                },
+            };
+            const { provider, requestAt } = setupWithTools(
+                [broken],
+                toolUse('broken', {}),
+                text('desculpe'),
+            );
+
+            assert.equal(await provider.generateResponse('chat', 'x'), 'desculpe');
+            const result = requestAt(1).messages[2]!.content[0];
+            assert.equal(result.is_error, true);
+            assert.equal(result.content, 'boom');
+        });
+
+        it('reports an unknown tool to the model', async () => {
+            const { provider, requestAt } = setupWithTools(
+                [],
+                toolUse('nope', {}),
+                text('ok'),
+            );
+
+            await provider.generateResponse('chat', 'x');
+
+            assert.equal(requestAt(1).messages[2]!.content[0].is_error, true);
+        });
+
+        it('gives up after too many tool rounds', async () => {
+            const { provider } = setupWithTools(
+                [new HelloWorldTool()],
+                ...Array.from({ length: 10 }, () => toolUse('hello_world', {})),
+            );
+
+            await assert.rejects(
+                provider.generateResponse('chat', 'x'),
+                /tool rounds/,
+            );
+        });
+
+        it('never starts the history on an orphaned tool_result', async () => {
+            const { provider, requestAt, create } = setupWithTools(
+                [new HelloWorldTool()],
+                toolUse('hello_world', {}),
+            );
+
+            await provider.generateResponse('chat', 'hello world');
+            for (let i = 0; i < 12; i++)
+                await provider.generateResponse('chat', `q${i}`);
+
+            for (let n = 0; n < create.mock.callCount(); n++) {
+                const first = requestAt(n).messages[0]!;
+                assert.equal(first.role, 'user');
+                assert.equal(typeof first.content, 'string');
+            }
+        });
     });
 });
