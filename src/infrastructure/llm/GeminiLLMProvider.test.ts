@@ -2,16 +2,34 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 import type { GoogleGenAI } from '@google/genai';
 import GeminiLLMProvider from './GeminiLLMProvider.js';
+import HelloWorldTool from '../../application/tools/HelloWorldTool.js';
+import type { Tool } from '../../providers/Tool.js';
 
-function setup(...replies: Array<string | undefined>) {
-    const sendMessage = mock.fn(async (..._args: unknown[]) => ({
-        text: replies.length ? replies.shift() : 'ok',
-    }));
+type Reply =
+    | string
+    | undefined
+    | { functionCalls: Array<{ id?: string; name: string; args?: unknown }> };
+
+const call = (name: string, args: unknown = {}, id = 'fc_1'): Reply => ({
+    functionCalls: [{ id, name, args }],
+});
+
+function setup(...replies: Reply[]) {
+    return setupWithTools([], ...replies);
+}
+
+function setupWithTools(tools: Tool[], ...replies: Reply[]) {
+    const sendMessage = mock.fn(async (..._args: unknown[]) => {
+        const reply = replies.length ? replies.shift() : 'ok';
+        return typeof reply === 'object'
+            ? { text: undefined, functionCalls: reply.functionCalls }
+            : { text: reply, functionCalls: undefined };
+    });
     const createChat = mock.fn((..._args: unknown[]) => ({ sendMessage }));
     const client = { chats: { create: createChat } } as unknown as GoogleGenAI;
 
     return {
-        provider: new GeminiLLMProvider(client),
+        provider: new GeminiLLMProvider(client, tools),
         sendMessage,
         createChat,
     };
@@ -86,5 +104,94 @@ describe('GeminiLLMProvider', () => {
             provider.generateResponse('chat', 'x'),
             /empty body/,
         );
+    });
+
+    describe('tools', () => {
+        it('does not declare tools when none are configured', async () => {
+            const { provider, createChat } = setup();
+
+            await provider.generateResponse('chat', 'oi');
+
+            const { config } = createChat.mock.calls[0]!.arguments[0] as {
+                config: Record<string, unknown>;
+            };
+            assert.equal('tools' in config, false);
+        });
+
+        it('declares tools and sends the function response back', async () => {
+            const { provider, createChat, sendMessage } = setupWithTools(
+                [new HelloWorldTool()],
+                call('hello_world', { name: 'Rafa' }),
+                'Olá, Rafa!',
+            );
+
+            const reply = await provider.generateResponse(
+                'chat',
+                'hello world',
+            );
+
+            assert.equal(reply, 'Olá, Rafa!');
+            const { config } = createChat.mock.calls[0]!.arguments[0] as {
+                config: {
+                    tools: Array<{
+                        functionDeclarations: Array<{ name: string }>;
+                    }>;
+                };
+            };
+            assert.equal(
+                config.tools[0]!.functionDeclarations[0]!.name,
+                'hello_world',
+            );
+            assert.deepEqual(sendMessage.mock.calls[1]!.arguments[0], {
+                message: [
+                    {
+                        functionResponse: {
+                            id: 'fc_1',
+                            name: 'hello_world',
+                            response: { output: 'Hello, Rafa! (sent by the hello_world tool)' },
+                        },
+                    },
+                ],
+            });
+        });
+
+        it('reports a failing tool to the model instead of throwing', async () => {
+            const broken: Tool = {
+                name: 'broken',
+                description: 'always fails',
+                parameters: { type: 'object', properties: {} },
+                execute: async () => {
+                    throw new Error('boom');
+                },
+            };
+            const { provider, sendMessage } = setupWithTools(
+                [broken],
+                call('broken'),
+                'desculpe',
+            );
+
+            assert.equal(
+                await provider.generateResponse('chat', 'x'),
+                'desculpe',
+            );
+            const sent = sendMessage.mock.calls[1]!.arguments[0] as {
+                message: Array<{ functionResponse: { response: unknown } }>;
+            };
+            assert.deepEqual(sent.message[0]!.functionResponse.response, {
+                error: 'boom',
+            });
+        });
+
+        it('gives up after too many tool rounds', async () => {
+            const { provider } = setupWithTools(
+                [new HelloWorldTool()],
+                ...Array.from({ length: 10 }, () => call('hello_world')),
+            );
+
+            await assert.rejects(
+                provider.generateResponse('chat', 'x'),
+                /tool rounds/,
+            );
+        });
     });
 });
