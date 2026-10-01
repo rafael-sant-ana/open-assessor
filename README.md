@@ -105,12 +105,13 @@ Done when:
 
 | Column        | Format                  | Notes                                    |
 | ------------- | ----------------------- | ---------------------------------------- |
-| `data`        | `DD/MM/YYYY`            | resolved date, not the message timestamp |
+| `data`        | date cell, `DD/MM/YYYY` | resolved date, not the message timestamp |
 | `valor`       | number                  | BRL, decimal comma in display locale     |
 | `descricao`   | text                    | as written by the user                   |
 | `categoria`   | enum                    | see `src/domain/categories.ts`           |
 | `criado_em`   | ISO 8601                | when the row was written                 |
-| `message_id`  | text                    | WhatsApp message ID, for idempotency     |
+| `message_key` | text                    | `platform:chatId:messageId#n`, for idempotency |
+| `user_id`     | text                    | `platform:authorId`, who the expense belongs to |
 
 **Open decision:** does v1 answer questions (`quanto gastei esse mês?`) or only write?
 Reading is a separate capability with its own failure modes — defaulting to no.
@@ -155,13 +156,16 @@ A QR code prints to the terminal on first run. Scan it from the bot's phone:
 Use a **service account**, not the OAuth consent flow — it's a fraction of the work for a
 single-user tool.
 
-1. Google Cloud Console → create a service account → create a JSON key
+1. Google Cloud Console → enable the Google Sheets API → create a service account → create
+   a JSON key
 2. Save the JSON somewhere outside the repo, point `GOOGLE_APPLICATION_CREDENTIALS` at it
+   (or put its contents in `GOOGLE_SERVICE_ACCOUNT_JSON` on platforms without files)
 3. Open your spreadsheet → Share → add the service account's email as **Editor**
 4. Copy the spreadsheet ID from its URL into `SPREADSHEET_ID`
 
 Step 3 is the one everybody forgets. Without it you get a `404` that looks like the
-sheet doesn't exist.
+sheet doesn't exist. The full walkthrough, with troubleshooting, is in the
+[Google Sheets setup guide](docs/google-sheets.md).
 
 To use Telegram instead of WhatsApp, follow the [Telegram bot setup guide](docs/telegram-bot.md).
 
@@ -178,8 +182,9 @@ To use Telegram instead of WhatsApp, follow the [Telegram bot setup guide](docs/
 | `ALLOWED_USERS`                  | yes*     | comma-separated `platform:id`, e.g. `telegram:123456` |
 | `ALLOWED_JIDS`                   | yes*     | WhatsApp JIDs (*one of the two is required); comma-separated, e.g. `5531999999999@s.whatsapp.net` |
 | `AUTH_STATE_PATH`                | no       | defaults to `./.auth`                          |
-| `SPREADSHEET_ID`                 | v1       | from the spreadsheet URL                       |
-| `GOOGLE_APPLICATION_CREDENTIALS` | v1       | path to the service account JSON               |
+| `SPREADSHEET_ID`                 | v1       | from the spreadsheet URL; without it expenses are kept in memory only |
+| `GOOGLE_APPLICATION_CREDENTIALS` | v1*      | path to the service account JSON (*one of this and `GOOGLE_SERVICE_ACCOUNT_JSON` when `SPREADSHEET_ID` is set) |
+| `GOOGLE_SERVICE_ACCOUNT_JSON`    | v1*      | the service account JSON itself, raw or base64; wins over the path |
 | `TIMEZONE`                       | no       | defaults to `America/Sao_Paulo`                |
 | `LOG_LEVEL`                      | no       | defaults to `info`                             |
 
@@ -199,8 +204,8 @@ To use Telegram instead of WhatsApp, follow the [Telegram bot setup guide](docs/
 
 - Baileys is unofficial. WhatsApp can and does break it, and in principle can ban numbers
   for automated use. Use a spare number, don't blast messages.
-- Expenses are kept in memory for now, so they are lost when the process restarts. The
-  Google Sheets repository is the next step.
+- Without `SPREADSHEET_ID`, expenses are kept in memory and lost when the process
+  restarts. With it they go to Google Sheets. Run one instance per spreadsheet.
 - One WhatsApp session per deployment.
 - No test coverage of the Baileys layer; it's exercised manually.
 
