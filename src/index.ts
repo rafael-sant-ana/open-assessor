@@ -14,7 +14,12 @@ if (allowList.isEmpty) {
 import type { Level } from 'pino';
 import PinoLogger from './infrastructure/logging/PinoLogger.js';
 import MessageHandler from './application/handlers/MessageHandler.js';
-import HelloWorldTool from './application/tools/HelloWorldTool.js';
+import AddExpense from './application/usecases/AddExpense.js';
+import ListExpenses from './application/usecases/ListExpenses.js';
+import AddExpenseTool from './application/tools/AddExpenseTool.js';
+import ListExpensesTool from './application/tools/ListExpensesTool.js';
+import { DEFAULT_TIMEZONE } from './domain/dates.js';
+import InMemoryExpenseRepository from './infrastructure/expenses/InMemoryExpenseRepository.js';
 import LLMProviderFactory from './infrastructure/llm/LLMProviderFactory.js';
 import ChatProviderFactory from './infrastructure/chat/ChatProviderFactory.js';
 
@@ -25,8 +30,14 @@ async function main() {
     );
 
     logger.debug('Initializing...');
+    // TODO: swap for the Google Sheets repository; expenses are lost on restart.
+    const expenses = new InMemoryExpenseRepository();
+    const clock = () => new Date();
+    const timezone = process.env.TIMEZONE ?? DEFAULT_TIMEZONE;
+
     const { name, provider: llmProvider } = LLMProviderFactory.create([
-        new HelloWorldTool(),
+        new AddExpenseTool(new AddExpense(expenses, clock, timezone)),
+        new ListExpensesTool(new ListExpenses(expenses)),
     ]);
     logger.info(`Using ${name} LLM provider`);
 
