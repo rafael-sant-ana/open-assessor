@@ -32,11 +32,16 @@ WhatsApp  ──▶  WhatsAppProvider  ──▶  MessageHandler  ──▶  LLM
                     reply                            (Google Sheets)
 ```
 
-Three boundaries, one implementation each. `WhatsAppProvider` is an interface because
-Baileys is an unofficial reverse-engineered client that breaks on WhatsApp updates, and
-we may need to swap it for the official Cloud API. `LLMProvider` is an interface because
-model vendors change. **Do not add more abstraction than this.** No factories, no plugin
+Three boundaries. `WhatsAppProvider` is an interface because Baileys is an unofficial
+reverse-engineered client that breaks on WhatsApp updates, and we may need to swap it for
+the official Cloud API. `LLMProvider` is an interface because model vendors change.
+`ExpenseRepository` is an interface because storage will move from memory to Google Sheets
+(and possibly Postgres later). **Do not add more abstraction than this.** No plugin
 registry, no dependency injection container.
+
+The model never touches storage directly. It calls tools (`add_expense`, `list_expenses`),
+which are thin adapters over the use cases in `src/application/usecases/`; the use cases
+hold the business rules and talk to `ExpenseRepository`.
 
 ### Stack
 
@@ -194,6 +199,8 @@ To use Telegram instead of WhatsApp, follow the [Telegram bot setup guide](docs/
 
 - Baileys is unofficial. WhatsApp can and does break it, and in principle can ban numbers
   for automated use. Use a spare number, don't blast messages.
+- Expenses are kept in memory for now, so they are lost when the process restarts. The
+  Google Sheets repository is the next step.
 - One WhatsApp session per deployment.
 - No test coverage of the Baileys layer; it's exercised manually.
 
