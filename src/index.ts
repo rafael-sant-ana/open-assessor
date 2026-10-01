@@ -18,6 +18,7 @@ import AddExpense from './application/usecases/AddExpense.js';
 import ListExpenses from './application/usecases/ListExpenses.js';
 import AddExpenseTool from './application/tools/AddExpenseTool.js';
 import ListExpensesTool from './application/tools/ListExpensesTool.js';
+import GetCurrentDateTool from './application/tools/GetCurrentDateTool.js';
 import { DEFAULT_TIMEZONE } from './domain/dates.js';
 import InMemoryExpenseRepository from './infrastructure/expenses/InMemoryExpenseRepository.js';
 import LLMProviderFactory from './infrastructure/llm/LLMProviderFactory.js';
@@ -38,6 +39,7 @@ async function main() {
     const { name, provider: llmProvider } = LLMProviderFactory.create([
         new AddExpenseTool(new AddExpense(expenses, clock, timezone)),
         new ListExpensesTool(new ListExpenses(expenses)),
+        new GetCurrentDateTool(clock, timezone),
     ]);
     logger.info(`Using ${name} LLM provider`);
 

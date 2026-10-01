@@ -11,7 +11,7 @@ export default class ListExpensesTool implements Tool {
     readonly description =
         'Looks up the user\'s recorded expenses in a period and returns the total, the total per category and the expenses. ' +
         'Call it when the user asks how much they spent (e.g. "quanto gastei esse mês?"). ' +
-        'Work out `from` and `to` from today\'s date. Both days are included.';
+        'Work out `from` and `to` from the date returned by get_current_date. Both days are included.';
     readonly parameters = {
         type: 'object',
         properties: {
