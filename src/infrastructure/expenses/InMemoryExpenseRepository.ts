@@ -5,6 +5,7 @@ export default class InMemoryExpenseRepository implements ExpenseRepository {
     private readonly expenses: Expense[] = [];
 
     async add(expense: Expense): Promise<void> {
+        if (this.expenses.some((e) => e.messageKey === expense.messageKey)) return;
         this.expenses.push(expense);
     }
 

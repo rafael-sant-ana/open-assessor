@@ -7,6 +7,7 @@ export interface DateRange {
 }
 
 export interface ExpenseRepository {
+    /** Idempotent: adding an expense whose `messageKey` is already stored does nothing. */
     add(expense: Expense): Promise<void>;
     /** Deletes the last expense created by the user and returns it, or `null` if there is none. */
     removeLastBy(userId: string): Promise<Expense | null>;
