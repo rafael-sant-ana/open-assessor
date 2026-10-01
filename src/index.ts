@@ -14,6 +14,7 @@ if (allowList.isEmpty) {
 import type { Level } from 'pino';
 import PinoLogger from './infrastructure/logging/PinoLogger.js';
 import MessageHandler from './application/handlers/MessageHandler.js';
+import HelloWorldTool from './application/tools/HelloWorldTool.js';
 import LLMProviderFactory from './infrastructure/llm/LLMProviderFactory.js';
 import ChatProviderFactory from './infrastructure/chat/ChatProviderFactory.js';
 
@@ -24,7 +25,9 @@ async function main() {
     );
 
     logger.debug('Initializing...');
-    const { name, provider: llmProvider } = LLMProviderFactory.create();
+    const { name, provider: llmProvider } = LLMProviderFactory.create([
+        new HelloWorldTool(),
+    ]);
     logger.info(`Using ${name} LLM provider`);
 
     const chat = ChatProviderFactory.create();
