@@ -53,3 +53,5 @@ quote-style = "double"
 [tool.pyright]
 include = ["src", "tests"]
 typeCheckingMode = "strict"
+# google-api-python-client ships no type information; its calls are wrapped in sheets_api.py.
+reportMissingTypeStubs = false
