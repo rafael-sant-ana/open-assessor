@@ -1,0 +1,52 @@
+[project]
+name = "open-assessor"
+version = "1.0.0"
+description = "An open-source personal finance assistant that lives in your chat app. Send it a message like gastei 50 no burger king and it records the expense in a Google Spreadsheet you own."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13"
+dependencies = [
+    "anthropic>=0.69",
+    "google-api-python-client>=2.180",
+    "google-auth>=2.40",
+    "google-genai>=1.40",
+    "openai>=2.0",
+    "python-dotenv>=1.1",
+    "python-telegram-bot>=22.0",
+    "tzdata>=2025.2",
+]
+
+[project.scripts]
+open-assessor = "open_assessor.__main__:run"
+check-sheets = "open_assessor.scripts.check_sheets:run"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.400",
+    "pytest>=8.4",
+    "pytest-asyncio>=1.2",
+    "ruff>=0.13",
+]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.10"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pyright]
+include = ["src", "tests"]
+typeCheckingMode = "strict"
