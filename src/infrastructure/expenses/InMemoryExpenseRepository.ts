@@ -10,7 +10,7 @@ export default class InMemoryExpenseRepository implements ExpenseRepository {
     }
 
     async removeLastBy(userId: string): Promise<Expense | null> {
-        const index = this.expenses.findLastIndex((e) => e.userId === userId);
+        const index = this.expenses.findLastIndex((e) => e.belongsTo(userId));
         if (index === -1) return null;
         return this.expenses.splice(index, 1)[0] ?? null;
     }
@@ -21,7 +21,7 @@ export default class InMemoryExpenseRepository implements ExpenseRepository {
 
     async listBy(userId: string, range: DateRange): Promise<Expense[]> {
         return this.expenses.filter(
-            (e) => e.userId === userId && e.date >= range.from && e.date <= range.to,
+            (e) => e.belongsTo(userId) && e.occursWithin(range),
         );
     }
 }

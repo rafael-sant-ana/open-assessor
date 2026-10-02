@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Expense } from './Expense.js';
+import { Expense, type ExpenseProps } from './Expense.js';
 import { summarize } from './summarize.js';
 
-const expense = (overrides: Partial<Expense>): Expense => ({
+const expense = (overrides: Partial<ExpenseProps>) => new Expense({
     date: '2026-10-01',
     amountCents: 1000,
-    currency: 'BRL',
     description: 'x',
     category: 'outros',
     userId: 'telegram:1',

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
+import { Expense } from '../../domain/expenses/Expense.js';
 import InMemoryExpenseRepository from '../../infrastructure/expenses/InMemoryExpenseRepository.js';
 import AddExpense, { type AddExpenseInput } from './AddExpense.js';
 
@@ -27,18 +28,17 @@ describe('AddExpense', () => {
     it('saves a normalized expense dated today in the configured timezone', async () => {
         const result = await addExpense.execute(input());
 
-        assert.deepEqual(result, {
-            status: 'saved',
-            expense: {
-                date: '2026-10-01',
-                amountCents: 5090,
-                currency: 'BRL',
-                description: 'burger king',
-                category: 'alimentacao',
-                userId: 'telegram:1',
-                messageKey: 'telegram:10:100#0',
-                createdAt: '2026-10-02T02:30:00.000Z',
-            },
+        assert.equal(result.status, 'saved');
+        assert.ok(result.status === 'saved' && result.expense instanceof Expense);
+        assert.deepEqual(result.status === 'saved' && { ...result.expense }, {
+            date: '2026-10-01',
+            amountCents: 5090,
+            currency: 'BRL',
+            description: 'burger king',
+            category: 'alimentacao',
+            userId: 'telegram:1',
+            messageKey: 'telegram:10:100#0',
+            createdAt: '2026-10-02T02:30:00.000Z',
         });
         assert.equal(await repository.existsByMessageId('telegram:10:100#0'), true);
     });

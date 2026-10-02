@@ -1,6 +1,5 @@
 import type { sheets_v4 } from '@googleapis/sheets';
-import { CATEGORIES, type Category } from '../../domain/categories.js';
-import type { Expense } from '../../domain/expenses/Expense.js';
+import { Expense, InvalidExpenseError } from '../../domain/expenses/Expense.js';
 import type {
     DateRange,
     ExpenseRepository,
@@ -108,19 +107,14 @@ export default class GoogleSheetsExpenseRepository implements ExpenseRepository 
         return this.enqueue(async () =>
             (await this.readExpenses())
                 .map(({ expense }) => expense)
-                .filter(
-                    (e) =>
-                        e.userId === userId &&
-                        e.date >= range.from &&
-                        e.date <= range.to,
-                ),
+                .filter((e) => e.belongsTo(userId) && e.occursWithin(range)),
         );
     }
 
     removeLastBy(userId: string): Promise<Expense | null> {
         return this.enqueue(async () => {
             const last = (await this.readExpenses())
-                .filter(({ expense }) => expense.userId === userId)
+                .filter(({ expense }) => expense.belongsTo(userId))
                 .at(-1);
             if (!last) return null;
 
@@ -314,27 +308,23 @@ function toRow(expense: Expense): Array<string | number> {
 function fromRow(row: unknown[]): Expense | null {
     const [serial, valor, description, category, createdAt, messageKey, userId] = row;
 
-    if (
-        typeof serial !== 'number' ||
-        typeof valor !== 'number' ||
-        typeof description !== 'string' ||
-        !isCategory(category) ||
-        typeof createdAt !== 'string' ||
-        typeof messageKey !== 'string' ||
-        typeof userId !== 'string'
-    )
-        return null;
+    // The sheet is only a store: a row someone mangled by hand is skipped, not fatal.
+    if (typeof serial !== 'number' || typeof valor !== 'number') return null;
 
-    return {
-        date: serialToIso(serial),
-        amountCents: Math.round(valor * 100),
-        currency: 'BRL',
-        description,
-        category,
-        userId,
-        messageKey,
-        createdAt,
-    };
+    try {
+        return new Expense({
+            date: serialToIso(serial),
+            amountCents: Math.round(valor * 100),
+            description,
+            category,
+            userId,
+            messageKey,
+            createdAt,
+        });
+    } catch (error) {
+        if (error instanceof InvalidExpenseError) return null;
+        throw error;
+    }
 }
 
 function isoToSerial(date: string): number {
@@ -346,10 +336,6 @@ function serialToIso(serial: number): string {
     return new Date(SHEETS_EPOCH_MS + Math.floor(serial) * MS_PER_DAY)
         .toISOString()
         .slice(0, 10);
-}
-
-function isCategory(value: unknown): value is Category {
-    return (CATEGORIES as readonly unknown[]).includes(value);
 }
 
 async function retry<T>(

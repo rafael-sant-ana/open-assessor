@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
-import type { Expense } from '../../domain/expenses/Expense.js';
+import { Expense, type ExpenseProps } from '../../domain/expenses/Expense.js';
 import type { ExpenseRepository } from '../../providers/ExpenseRepository.js';
 
-const expense = (overrides: Partial<Expense> = {}): Expense => ({
+const expense = (overrides: Partial<ExpenseProps> = {}) => new Expense({
     date: '2026-10-01',
     amountCents: 5090,
-    currency: 'BRL',
     description: 'burger king',
     category: 'alimentacao',
     userId: 'telegram:1',

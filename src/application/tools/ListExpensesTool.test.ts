@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
-import type { Expense } from '../../domain/expenses/Expense.js';
+import { Expense, type ExpenseProps } from '../../domain/expenses/Expense.js';
 import InMemoryExpenseRepository from '../../infrastructure/expenses/InMemoryExpenseRepository.js';
 import type { ToolContext } from '../../providers/Tool.js';
 import ListExpenses from '../usecases/ListExpenses.js';
@@ -11,10 +11,9 @@ const context: ToolContext = {
     messageKey: 'telegram:10:100',
 };
 
-const expense = (i: number, overrides: Partial<Expense> = {}): Expense => ({
+const expense = (i: number, overrides: Partial<ExpenseProps> = {}) => new Expense({
     date: '2026-10-01',
     amountCents: 1000,
-    currency: 'BRL',
     description: `item ${i}`,
     category: 'outros',
     userId: 'telegram:1',

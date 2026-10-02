@@ -37,7 +37,7 @@ export default class ListExpenses {
         const expenses =
             category === undefined
                 ? found
-                : found.filter((e) => e.category === category);
+                : found.filter((e) => e.hasCategory(category));
 
         return { status: 'ok', expenses, summary: summarize(expenses) };
     }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Expense } from '../../domain/expenses/Expense.js';
+import { Expense, type ExpenseProps } from '../../domain/expenses/Expense.js';
 import { expenseRepositoryContract } from './expenseRepositoryContract.js';
 import FakeSheets from './FakeSheets.js';
 import GoogleSheetsExpenseRepository, { SHEET_HEADER } from './GoogleSheetsExpenseRepository.js';
@@ -11,10 +11,9 @@ const noSleep = async () => {};
 const create = (fake: FakeSheets, sleep: (ms: number) => Promise<void> = noSleep) =>
     GoogleSheetsExpenseRepository.create(fake.asClient(), SPREADSHEET_ID, { sleep });
 
-const expense = (overrides: Partial<Expense> = {}): Expense => ({
+const expense = (overrides: Partial<ExpenseProps> = {}) => new Expense({
     date: '2026-10-01',
     amountCents: 5090,
-    currency: 'BRL',
     description: 'burger king',
     category: 'alimentacao',
     userId: 'telegram:1',
@@ -150,7 +149,7 @@ describe('GoogleSheetsExpenseRepository', () => {
                 ['not a date', 10, 'x', 'outros', 't', 'k1', 'telegram:1'],
                 [46296, 10, 'x', 'viagem', 't', 'k2', 'telegram:1'],
                 [46296],
-                [46296, 12.5, 'bom', 'outros', 't', 'k3', 'telegram:1'],
+                [46296, 12.5, 'bom', 'outros', '2026-10-01T12:00:00.000Z', 'k3', 'telegram:1'],
             ]);
             const repo = await create(fake);
 
