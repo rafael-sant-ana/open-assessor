@@ -21,6 +21,7 @@
     "main": "dist/index.js",
     "scripts": {
         "dev": "tsx watch src/index.ts",
+        "check:sheets": "tsx scripts/check-sheets.ts",
         "test": "node --import tsx --test \"src/**/*.test.ts\""
     },
     "engines": {
