@@ -1,7 +1,7 @@
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import TypeGuard
 from zoneinfo import ZoneInfo
 
@@ -49,6 +49,11 @@ def is_valid_iso_date(value: object) -> TypeGuard[str]:
     except ValueError:
         return False
     return True
+
+
+def to_iso_instant(now: datetime) -> str:
+    """UTC instant with milliseconds, e.g. `2026-10-01T12:00:00.000Z`."""
+    return now.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def today_in(timezone: str, now: datetime) -> str:
