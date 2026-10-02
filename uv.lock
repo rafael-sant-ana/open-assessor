@@ -657,11 +657,8 @@ name = "open-assessor"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
-    { name = "anthropic" },
     { name = "google-api-python-client" },
     { name = "google-auth" },
-    { name = "google-genai" },
-    { name = "openai" },
     { name = "pydantic-ai-slim", extra = ["anthropic", "google", "openai"] },
     { name = "python-dotenv" },
     { name = "python-telegram-bot" },
@@ -678,11 +675,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", specifier = ">=0.69" },
     { name = "google-api-python-client", specifier = ">=2.180" },
     { name = "google-auth", specifier = ">=2.40" },
-    { name = "google-genai", specifier = ">=1.40" },
-    { name = "openai", specifier = ">=2.0" },
     { name = "pydantic-ai-slim", extras = ["anthropic", "google", "openai"], specifier = ">=2.53" },
     { name = "python-dotenv", specifier = ">=1.1" },
     { name = "python-telegram-bot", specifier = ">=22.0" },
