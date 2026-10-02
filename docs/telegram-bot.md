@@ -1,12 +1,10 @@
 # Telegram bot setup
 
-open-assessor can talk to you over Telegram instead of WhatsApp. It uses a regular
-Telegram bot with long polling, so you don't need a public URL, a spare phone number or a
-QR code.
+open-assessor talks to you over Telegram. It uses a regular Telegram bot with long
+polling, so you don't need a public URL, a spare phone number or a QR code.
 
-Only **one chat provider runs at a time**. `CHAT_PROVIDER` picks it (`whatsapp` is the
-default, `telegram` enables this guide). To use both platforms you need two separate
-deployments.
+Only **one chat provider runs at a time**. `CHAT_PROVIDER` picks it, and `telegram` is the
+default. WhatsApp is coming back through a separate gateway and is not available yet.
 
 ## Setup
 
@@ -40,7 +38,7 @@ placeholder value in one of them for now. You will replace it in step 5.
 ### 3. Start the bot
 
 ```bash
-npm run dev
+uv run open-assessor
 ```
 
 You should see `Using telegram chat provider` in the logs, followed by
@@ -69,13 +67,7 @@ alias.)
 ### 5. Add yourself to `ALLOWED_USERS`
 
 Entries use the format `platform:id`, comma-separated. For Telegram the platform is
-`telegram`. Mix platforms freely:
-
-```env
-ALLOWED_USERS="whatsapp:5531999999999@s.whatsapp.net,telegram:123456789"
-```
-
-Telegram-only example:
+`telegram`:
 
 ```env
 ALLOWED_USERS="telegram:123456789"
@@ -105,7 +97,8 @@ the typing indicator and then a reply. If nothing happens, see Troubleshooting b
 | ------- | ------------- |
 | The app exits at startup with an error from Telegram (e.g. `401: Unauthorized`) | The token is invalid or was revoked. Check `TELEGRAM_BOT_TOKEN` for typos or extra spaces, or generate a new one with `/token` in @BotFather. The token is validated at startup, so a bad one fails immediately. |
 | `Missing required environment variable: TELEGRAM_BOT_TOKEN` | `CHAT_PROVIDER` is `telegram` but the token is not set in `.env`. |
-| `Unsupported CHAT_PROVIDER` | The value must be exactly `whatsapp` or `telegram`. |
+| `Unsupported CHAT_PROVIDER` | The value must be `telegram`. |
+| `WhatsApp is not available in this version` | `CHAT_PROVIDER` is `whatsapp`. Set it to `telegram`; WhatsApp support is coming back through a separate gateway. |
 | The bot is silent, but `/meu-id` works | Your id is not in `ALLOWED_USERS`, or the entry is malformed. It must be `telegram:<id>` with the numeric id and no spaces inside the entry. Restart after editing `.env`. Set `LOG_LEVEL="debug"` to see `Ignoring message from unauthorized user`. |
 | The bot ignores everything, including `/meu-id` | You are messaging from a group or sending non-text content. Use a private chat with plain text. |
 | `409 Conflict: terminated by other getUpdates request` in the logs | Two instances are polling with the same token (for example a second terminal, a leftover process or a deployed copy). Stop all but one. |

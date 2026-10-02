@@ -62,10 +62,11 @@ base64 -w0 google-service-account.json   # Linux; on macOS use: base64 -i google
 
 If both variables are set, `GOOGLE_SERVICE_ACCOUNT_JSON` wins.
 
-### 5. Start the bot
+### 5. Check the setup, then start the bot
 
 ```bash
-npm run dev
+uv run check-sheets   # adds a test row, reads it back and removes it
+uv run open-assessor
 ```
 
 You should see `Using Google Sheets expense storage` in the logs. On the first run the app
@@ -82,7 +83,7 @@ never sorts or rewrites them.
 | `data`        | the expense day, a real date shown as `DD/MM/YYYY`               |
 | `valor`       | the amount in BRL, a real number shown as currency                |
 | `descricao`   | text, as written by you                                          |
-| `categoria`   | one of the categories in `src/domain/categories.ts`              |
+| `categoria`   | one of the categories in `src/open_assessor/domain/categories.py`              |
 | `criado_em`   | when the row was written, ISO 8601                               |
 | `message_key` | `platform:chatId:messageId#n`, used so a replayed message never creates a second row |
 | `user_id`     | `platform:authorId`, who the expense belongs to                   |

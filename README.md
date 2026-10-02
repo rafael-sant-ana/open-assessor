@@ -1,7 +1,10 @@
 # Open-Assessor
 
-An open-source personal finance assistant that lives in WhatsApp. Send it a message like
-`gastei 50 no burger king` and it records the expense in a Google Spreadsheet you own.
+An open-source personal finance assistant that lives in your chat app. Send it a message
+like `gastei 50 no burger king` and it records the expense in a Google Spreadsheet you own.
+
+It runs on Telegram today. WhatsApp support is coming back through a separate gateway
+(a small Node service around Baileys that the Python app talks to over gRPC).
 
 Inspired by [meuassessor.com](https://meuassessor.com).
 
@@ -18,41 +21,40 @@ queryable.
 - Not a bank integration. It never touches your money, reads your statements, or asks
   for banking credentials.
 - Not a multi-tenant SaaS. One deployment serves one person (or one household).
-- Not an app. There is no UI beyond WhatsApp and the spreadsheet.
+- Not an app. There is no UI beyond the chat and the spreadsheet.
 
 ---
 
 ## Architecture
 
 ```
-WhatsApp  ──▶  WhatsAppProvider  ──▶  MessageHandler  ──▶  LLMProvider
-   ▲             (Baileys)                  │              (OpenAI)
-   │                                        │
-   └────────────────────────────────────────┴──▶  ExpenseRepository
-                    reply                            (Google Sheets)
+Telegram  ──▶  ChatProvider  ──▶  MessageHandler  ──▶  LLMProvider
+   ▲         (python-telegram-bot)        │       (OpenAI / Claude / Gemini)
+   │                                      │
+   └──────────────────────────────────────┴──▶  ExpenseRepository
+                    reply                          (Google Sheets)
 ```
 
-Three boundaries. `WhatsAppProvider` is an interface because Baileys is an unofficial
-reverse-engineered client that breaks on WhatsApp updates, and we may need to swap it for
-the official Cloud API. `LLMProvider` is an interface because model vendors change.
+Three boundaries. `ChatProvider` is an interface because chat platforms come and go:
+Telegram today, WhatsApp through a gateway next. `LLMProvider` is an interface because model vendors change.
 `ExpenseRepository` is an interface because storage will move from memory to Google Sheets
 (and possibly Postgres later). **Do not add more abstraction than this.** No plugin
 registry, no dependency injection container.
 
 The model never touches storage directly. It calls tools (`add_expense`, `list_expenses`),
-which are thin adapters over the use cases in `src/application/usecases/`; the use cases
+which are thin adapters over the use cases in `src/open_assessor/application/usecases/`; the use cases
 hold the business rules and talk to `ExpenseRepository`.
 
 ### Stack
 
 | Concern       | Choice                          |
 | ------------- | ------------------------------- |
-| Runtime       | Node.js 20+, TypeScript         |
-| WhatsApp      | `@whiskeysockets/baileys`       |
-| LLM           | to-define                       |
+| Runtime       | Python 3.13+, managed with `uv` |
+| Chat          | `python-telegram-bot`           |
+| LLM           | OpenAI, Anthropic or Gemini SDK |
 | Storage       | Google Sheets API v4            |
-| Validation    | `zod`                           |
-| Logging       | `pino`                          |
+| Checks        | `pytest`, `pyright` (strict), `ruff` |
+| Logging       | standard `logging`              |
 
 ---
 
@@ -90,7 +92,7 @@ Done when:
 
 - [ ] Incoming text is classified: `expense` vs `other`. Non-expenses fall back to v0
       behavior (plain LLM reply), they are not force-parsed into rows.
-- [ ] Expense extraction uses structured output against a schema, validated with `zod`.
+- [ ] Expense extraction uses structured output against a schema, validated against that schema.
       No regex parsing of free-form model text.
 - [ ] Relative dates resolve correctly in `America/Sao_Paulo` (`ontem`, `sexta passada`,
       no date → today)
@@ -108,7 +110,7 @@ Done when:
 | `data`        | date cell, `DD/MM/YYYY` | resolved date, not the message timestamp |
 | `valor`       | number                  | BRL, decimal comma in display locale     |
 | `descricao`   | text                    | as written by the user                   |
-| `categoria`   | enum                    | see `src/domain/categories.ts`           |
+| `categoria`   | enum                    | see `src/open_assessor/domain/categories.py` |
 | `criado_em`   | ISO 8601                | when the row was written                 |
 | `message_key` | text                    | `platform:chatId:messageId#n`, for idempotency |
 | `user_id`     | text                    | `platform:authorId`, who the expense belongs to |
@@ -127,29 +129,35 @@ summaries, Postgres instead of Sheets.
 
 ### Prerequisites
 
-- Node.js 20+
-- A spare phone number for the bot (WhatsApp will be linked to it)
-- An OpenAI API key
+- [uv](https://docs.astral.sh/uv/) (it installs the right Python for you)
+- A Telegram bot token from @BotFather
+- An OpenAI, Anthropic or Gemini API key
 - A Google Cloud project with the Sheets API enabled (v1 only)
 
 ### Setup
 
 ```bash
-git clone https://github.com/YOUR_USER/assessor.git
-cd assessor
-npm install
+git clone https://github.com/rafael-sant-ana/open-assessor.git
+cd open-assessor
+uv sync
 cp .env.example .env
 ```
 
-Fill in `.env`, then:
+Fill in `.env` (the [Telegram bot setup guide](docs/telegram-bot.md) walks through it), then:
 
 ```bash
-npm run dev
+uv run open-assessor
 ```
 
-A QR code prints to the terminal on first run. Scan it from the bot's phone:
-**WhatsApp → Settings → Linked devices → Link a device**. Credentials are written to
-`AUTH_STATE_PATH` and reused on subsequent runs.
+### Development
+
+```bash
+uv run pytest         # tests
+uv run pyright        # type check (strict)
+uv run ruff check     # lint
+uv run ruff format    # format
+uv run check-sheets   # verify Google Sheets storage without an LLM
+```
 
 ### Google Sheets credentials (v1)
 
@@ -167,21 +175,21 @@ Step 3 is the one everybody forgets. Without it you get a `404` that looks like 
 sheet doesn't exist. The full walkthrough, with troubleshooting, is in the
 [Google Sheets setup guide](docs/google-sheets.md).
 
-To use Telegram instead of WhatsApp, follow the [Telegram bot setup guide](docs/telegram-bot.md).
 
 ### Environment
 
 | Variable                         | Required | Description                                   |
 | -------------------------------- | -------- | --------------------------------------------- |
-| `OPENAI_API_KEY`                 | yes      |                                               |
+| `OPENAI_API_KEY`                 | yes*     | one LLM key is required                        |
 | `OPENAI_MODEL`                   | no       | defaults to a small, cheap model               |
 | `ANTHROPIC_API_KEY`              | no       | alternative to OpenAI/Gemini (priority: OpenAI, Anthropic, Gemini) |
 | `ANTHROPIC_MODEL`                | no       | defaults to `claude-haiku-4-5-20251001`        |
-| `CHAT_PROVIDER`                  | no       | chat platform: `whatsapp` (default) or `telegram` |
-| `TELEGRAM_BOT_TOKEN`             | yes**    | bot token from @BotFather (**only when `CHAT_PROVIDER=telegram`) |
+| `GEMINI_API_KEY`                 | no       | alternative to OpenAI/Anthropic                |
+| `GEMINI_MODEL`                   | no       | defaults to `gemini-3.6-flash`                 |
+| `CHAT_PROVIDER`                  | no       | chat platform: `telegram` (default)            |
+| `TELEGRAM_BOT_TOKEN`             | yes      | bot token from @BotFather                      |
 | `ALLOWED_USERS`                  | yes*     | comma-separated `platform:id`, e.g. `telegram:123456` |
 | `ALLOWED_JIDS`                   | yes*     | WhatsApp JIDs (*one of the two is required); comma-separated, e.g. `5531999999999@s.whatsapp.net` |
-| `AUTH_STATE_PATH`                | no       | defaults to `./.auth`                          |
 | `SPREADSHEET_ID`                 | v1       | from the spreadsheet URL; without it expenses are kept in memory only |
 | `GOOGLE_APPLICATION_CREDENTIALS` | v1*      | path to the service account JSON (*one of this and `GOOGLE_SERVICE_ACCOUNT_JSON` when `SPREADSHEET_ID` is set) |
 | `GOOGLE_SERVICE_ACCOUNT_JSON`    | v1*      | the service account JSON itself, raw or base64; wins over the path |
@@ -192,27 +200,26 @@ To use Telegram instead of WhatsApp, follow the [Telegram bot setup guide](docs/
 
 ## Security
 
-- `.auth/` contains credentials that grant **full access to the linked WhatsApp account**.
-  It is gitignored. Never commit it, never put it in a public Docker image layer.
+- The Telegram bot token lets anyone control the bot. Keep it in `.env`, which is
+  gitignored.
 - The service account JSON key grants write access to every sheet it's been shared with.
   Keep it outside the repo.
 - The allowlist is your only access control. There is no other authentication.
-- Message contents are sent to OpenAI. If that's not acceptable for your data, swap in a
-  local model behind `LLMProvider`.
+- Message contents are sent to the configured LLM provider. If that's not acceptable for
+  your data, swap in a local model behind `LLMProvider`.
 
 ## Known limitations
 
-- Baileys is unofficial. WhatsApp can and does break it, and in principle can ban numbers
-  for automated use. Use a spare number, don't blast messages.
+- WhatsApp is not available until the gateway lands. When it does, it will use Baileys, an
+  unofficial client: WhatsApp can break it and in principle ban numbers for automated use.
 - Without `SPREADSHEET_ID`, expenses are kept in memory and lost when the process
   restarts. With it they go to Google Sheets. Run one instance per spreadsheet.
-- One WhatsApp session per deployment.
-- No test coverage of the Baileys layer; it's exercised manually.
+- One chat platform per deployment.
 
 ## Contributing
 
 Issues and PRs welcome. Before writing code for a new capability, open an issue with:
-a literal WhatsApp transcript of the intended behavior, the acceptance criteria including
+a literal chat transcript of the intended behavior, the acceptance criteria including
 at least three failure cases, and what's explicitly out of scope.
 
 ## License
