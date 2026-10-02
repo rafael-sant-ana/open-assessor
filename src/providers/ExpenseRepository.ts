@@ -1,10 +1,7 @@
+import type { DateRange } from '../domain/dates.js';
 import type { Expense } from '../domain/expenses/Expense.js';
 
-/** Inclusive range of calendar days, `YYYY-MM-DD`. */
-export interface DateRange {
-    readonly from: string;
-    readonly to: string;
-}
+export type { DateRange };
 
 export interface ExpenseRepository {
     /** Idempotent: adding an expense whose `messageKey` is already stored does nothing. */

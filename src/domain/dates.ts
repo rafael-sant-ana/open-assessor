@@ -1,5 +1,11 @@
 export type Clock = () => Date;
 
+/** Inclusive range of calendar days, `YYYY-MM-DD`. */
+export interface DateRange {
+    readonly from: string;
+    readonly to: string;
+}
+
 export const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
 
 const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
