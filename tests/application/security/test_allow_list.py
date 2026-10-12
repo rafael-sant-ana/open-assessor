@@ -26,3 +26,11 @@ def test_matches_any_alias_of_the_user():
     allow_list = AllowList.from_env({"ALLOWED_USERS": "whatsapp:55@s.whatsapp.net"})
 
     assert allow_list.is_allowed("whatsapp", MessageUser("99@lid", aliases=("55@s.whatsapp.net",)))
+
+
+def test_parses_a_comma_separated_list_such_as_admin_users():
+    admins = AllowList.from_csv(" telegram:1 ,, whatsapp:55@s.whatsapp.net ")
+
+    assert admins.entries == ["telegram:1", "whatsapp:55@s.whatsapp.net"]
+    assert admins.is_allowed("telegram", MessageUser("1"))
+    assert AllowList.from_csv("").is_empty
