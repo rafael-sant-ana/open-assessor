@@ -18,6 +18,7 @@ from open_assessor.infrastructure.expenses.expense_repository_factory import (
 from open_assessor.infrastructure.llm.llm_provider_factory import create_llm_provider
 from open_assessor.infrastructure.llm.toolset import build_toolset
 from open_assessor.infrastructure.logging.std_logger import StdLogger, configure_logging
+from open_assessor.infrastructure.transcription.transcriber_factory import create_transcriber
 
 
 class ConfigurationError(Exception):
@@ -58,7 +59,11 @@ async def main() -> None:
     chat = create_chat_provider()
     logger.info(f"Using {chat.platform} chat provider")
 
-    handler = MessageHandler(llm.provider, allow_list, StdLogger("handler"))
+    transcriber = create_transcriber()
+    if transcriber is None:
+        logger.warning("OPENAI_API_KEY is not set: audio messages will not be transcribed")
+
+    handler = MessageHandler(llm.provider, allow_list, StdLogger("handler"), transcriber)
 
     async def on_message(message: Message) -> None:
         await handler.handle(message, chat)

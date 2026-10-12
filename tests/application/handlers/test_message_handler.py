@@ -2,9 +2,15 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from open_assessor.application.handlers.message_handler import ERROR_REPLY, MessageHandler
+from open_assessor.application.handlers.message_handler import (
+    AUDIO_EMPTY_REPLY,
+    AUDIO_ERROR_REPLY,
+    AUDIO_UNSUPPORTED_REPLY,
+    ERROR_REPLY,
+    MessageHandler,
+)
 from open_assessor.application.security.allow_list import AllowList
-from open_assessor.domain.messages import ChatPlatform, Message, MessageUser
+from open_assessor.domain.messages import Audio, ChatPlatform, Message, MessageUser
 from open_assessor.ports.chat_provider import MessageListener, Unsubscribe
 from open_assessor.ports.logger import MessageContext
 from open_assessor.ports.tool import ToolContext
@@ -111,3 +117,88 @@ async def test_replies_with_an_apology_when_the_llm_fails(chat: FakeChat):
 
     assert chat.sent == [("10", ERROR_REPLY)]
     assert chat.typing == [True, False]
+
+
+@dataclass
+class FakeTranscriber:
+    text: str | Exception = "gastei 10 reais em pão"
+    calls: list[Audio] = field(default_factory=list[Audio])
+
+    async def transcribe(self, audio: Audio) -> str:
+        self.calls.append(audio)
+        if isinstance(self.text, Exception):
+            raise self.text
+        return self.text
+
+
+VOICE = Audio(b"ogg-bytes", "voice.ogg", "audio/ogg")
+
+
+def voice_message(author: str = "1") -> Message:
+    return Message(
+        id="100",
+        platform="telegram",
+        author=MessageUser(author),
+        content="",
+        chat_id="10",
+        audio=VOICE,
+    )
+
+
+def audio_handler(llm: FakeLLM, transcriber: FakeTranscriber | None) -> MessageHandler:
+    return MessageHandler(
+        llm, AllowList.from_env({"ALLOWED_USERS": "telegram:1"}), SilentLogger(), transcriber
+    )
+
+
+async def test_transcribes_audio_and_sends_the_text_to_the_llm(chat: FakeChat):
+    llm = FakeLLM(reply="Salvo!")
+    transcriber = FakeTranscriber()
+
+    await audio_handler(llm, transcriber).handle(voice_message(), chat)
+
+    assert transcriber.calls == [VOICE]
+    assert [text for _, text, _ in llm.calls] == ["gastei 10 reais em pão"]
+    assert chat.sent == [("10", '🎙️ "gastei 10 reais em pão"\n\nSalvo!')]
+    assert chat.typing == [True, False]
+
+
+async def test_does_not_transcribe_audio_from_unauthorized_users(chat: FakeChat):
+    llm = FakeLLM()
+    transcriber = FakeTranscriber()
+
+    await audio_handler(llm, transcriber).handle(voice_message(author="2"), chat)
+
+    assert transcriber.calls == []
+    assert llm.calls == []
+    assert chat.sent == []
+
+
+async def test_asks_for_text_when_no_transcriber_is_configured(chat: FakeChat):
+    llm = FakeLLM()
+
+    await audio_handler(llm, None).handle(voice_message(), chat)
+
+    assert llm.calls == []
+    assert chat.sent == [("10", AUDIO_UNSUPPORTED_REPLY)]
+
+
+async def test_replies_with_an_apology_when_transcription_fails(chat: FakeChat):
+    llm = FakeLLM()
+
+    await audio_handler(llm, FakeTranscriber(text=RuntimeError("boom"))).handle(
+        voice_message(), chat
+    )
+
+    assert llm.calls == []
+    assert chat.sent == [("10", AUDIO_ERROR_REPLY)]
+    assert chat.typing == [True, False]
+
+
+async def test_asks_to_repeat_when_the_transcription_is_empty(chat: FakeChat):
+    llm = FakeLLM()
+
+    await audio_handler(llm, FakeTranscriber(text="")).handle(voice_message(), chat)
+
+    assert llm.calls == []
+    assert chat.sent == [("10", AUDIO_EMPTY_REPLY)]
