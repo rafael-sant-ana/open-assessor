@@ -12,9 +12,19 @@ class MessageUser:
 
 
 @dataclass(frozen=True, slots=True)
+class Audio:
+    data: bytes
+    file_name: str
+    """Carries the extension transcription services use to detect the format (e.g. voice.ogg)."""
+    mime_type: str
+
+
+@dataclass(frozen=True, slots=True)
 class Message:
     id: str
     platform: ChatPlatform
     author: MessageUser
     content: str
     chat_id: str
+    audio: Audio | None = None
+    """Set for voice notes and audio files; content is empty until it is transcribed."""

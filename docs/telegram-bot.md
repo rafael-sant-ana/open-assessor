@@ -82,8 +82,14 @@ the typing indicator and then a reply. If nothing happens, see Troubleshooting b
 
 ## Behavior
 
-- **Private chats and text only.** Messages from groups, supergroups and channels are
-  ignored, as are non-text messages (photos, voice notes, stickers, files).
+- **Private chats, text and audio.** Messages from groups, supergroups and channels are
+  ignored, as are photos, stickers and other files.
+- **Voice notes and audio files** are transcribed with OpenAI (`OPENAI_API_KEY`, model set by
+  `OPENAI_TRANSCRIPTION_MODEL`, default `gpt-4o-mini-transcribe`) and then handled like a
+  typed message, so "gastei 10 reais no mercado" works spoken too. The reply starts with what
+  the bot heard, so a misheard amount is easy to spot. This works with any LLM provider, but it
+  needs an OpenAI key: without one, the bot asks you to send text instead. Audio files over
+  20 MB (the Telegram bot download limit) are ignored.
 - **Long replies are split.** Telegram limits a message to 4096 characters. Longer replies
   are sent as several messages, breaking at a newline when possible.
 - **Typing indicator.** While the LLM is generating a response the bot shows "typing...",
