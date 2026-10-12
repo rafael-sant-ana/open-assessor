@@ -6,11 +6,9 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"
 dependencies = [
-    "anthropic>=0.69",
     "google-api-python-client>=2.180",
     "google-auth>=2.40",
-    "google-genai>=1.40",
-    "openai>=2.0",
+    "pydantic-ai-slim[anthropic,google,openai]>=2.53",
     "python-dotenv>=1.1",
     "python-telegram-bot>=22.0",
     "tzdata>=2025.2",

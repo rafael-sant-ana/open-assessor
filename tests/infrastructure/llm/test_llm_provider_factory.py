@@ -1,31 +1,32 @@
 import pytest
+from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.models.openai import OpenAIResponsesModel
 
-from open_assessor.infrastructure.llm.claude_llm_provider import ClaudeLLMProvider
-from open_assessor.infrastructure.llm.gemini_llm_provider import GeminiLLMProvider
 from open_assessor.infrastructure.llm.llm_provider_factory import create_llm_provider
-from open_assessor.infrastructure.llm.openai_llm_provider import OpenAILLMProvider
-from tests.infrastructure.llm.fixtures import GreeterTool
+from open_assessor.infrastructure.llm.pydantic_ai_provider import PydanticAIProvider
 
 
-def test_creates_the_openai_provider_when_only_openai_api_key_is_set():
+def test_uses_openai_when_only_openai_api_key_is_set():
     created = create_llm_provider(env={"OPENAI_API_KEY": "openai-key"})
 
     assert created.name == "OpenAI"
-    assert isinstance(created.provider, OpenAILLMProvider)
+    assert isinstance(created.model, OpenAIResponsesModel)
+    assert isinstance(created.provider, PydanticAIProvider)
 
 
-def test_creates_the_claude_provider_when_only_anthropic_api_key_is_set():
+def test_uses_claude_when_only_anthropic_api_key_is_set():
     created = create_llm_provider(env={"ANTHROPIC_API_KEY": "anthropic-key"})
 
     assert created.name == "Claude"
-    assert isinstance(created.provider, ClaudeLLMProvider)
+    assert isinstance(created.model, AnthropicModel)
 
 
-def test_creates_the_gemini_provider_when_only_gemini_api_key_is_set():
+def test_uses_gemini_when_only_gemini_api_key_is_set():
     created = create_llm_provider(env={"GEMINI_API_KEY": "gemini-key"})
 
     assert created.name == "Gemini"
-    assert isinstance(created.provider, GeminiLLMProvider)
+    assert isinstance(created.model, GoogleModel)
 
 
 def test_prefers_openai_over_claude_and_gemini_when_all_keys_are_set():
@@ -40,17 +41,34 @@ def test_prefers_claude_over_gemini_when_openai_is_not_configured():
     assert create_llm_provider(env=env).name == "Claude"
 
 
-def test_passes_the_tools_on_to_the_created_provider():
-    created = create_llm_provider([GreeterTool()], env={"ANTHROPIC_API_KEY": "anthropic-key"})
-
-    assert isinstance(created.provider, ClaudeLLMProvider)
-    assert [t.name for t in created.provider.tools] == ["greet"]
-
-
 def test_ignores_keys_set_to_an_empty_string():
     env = {"OPENAI_API_KEY": "", "GEMINI_API_KEY": "gemini-key"}
 
     assert create_llm_provider(env=env).name == "Gemini"
+
+
+@pytest.mark.parametrize(
+    ("env", "default"),
+    [
+        ({"OPENAI_API_KEY": "k"}, "gpt-5.6-luna"),
+        ({"ANTHROPIC_API_KEY": "k"}, "claude-haiku-4-5-20251001"),
+        ({"GEMINI_API_KEY": "k"}, "gemini-3.6-flash"),
+    ],
+)
+def test_uses_a_default_model_per_provider(env: dict[str, str], default: str):
+    assert create_llm_provider(env=env).model.model_name == default
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"OPENAI_API_KEY": "k", "OPENAI_MODEL": "custom-model"},
+        {"ANTHROPIC_API_KEY": "k", "ANTHROPIC_MODEL": "custom-model"},
+        {"GEMINI_API_KEY": "k", "GEMINI_MODEL": "custom-model"},
+    ],
+)
+def test_reads_the_model_from_the_environment(env: dict[str, str]):
+    assert create_llm_provider(env=env).model.model_name == "custom-model"
 
 
 def test_raises_listing_every_accepted_variable_when_no_key_is_configured():

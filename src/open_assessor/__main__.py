@@ -7,9 +7,6 @@ from dotenv import load_dotenv
 
 from open_assessor.application.handlers.message_handler import MessageHandler
 from open_assessor.application.security.allow_list import AllowList
-from open_assessor.application.tools.add_expense_tool import AddExpenseTool
-from open_assessor.application.tools.get_current_date_tool import GetCurrentDateTool
-from open_assessor.application.tools.list_expenses_tool import ListExpensesTool
 from open_assessor.application.usecases.add_expense import AddExpense
 from open_assessor.application.usecases.list_expenses import ListExpenses
 from open_assessor.domain.dates import DEFAULT_TIMEZONE
@@ -19,6 +16,7 @@ from open_assessor.infrastructure.expenses.expense_repository_factory import (
     create_expense_repository,
 )
 from open_assessor.infrastructure.llm.llm_provider_factory import create_llm_provider
+from open_assessor.infrastructure.llm.toolset import build_toolset
 from open_assessor.infrastructure.logging.std_logger import StdLogger, configure_logging
 
 
@@ -48,14 +46,14 @@ async def main() -> None:
         logger.warning("SPREADSHEET_ID is not set: expenses are kept in memory and lost on restart")
     timezone = os.environ.get("TIMEZONE") or DEFAULT_TIMEZONE
 
-    llm = create_llm_provider(
-        [
-            AddExpenseTool(AddExpense(storage.repository, clock, timezone)),
-            ListExpensesTool(ListExpenses(storage.repository)),
-            GetCurrentDateTool(clock, timezone),
-        ]
+    toolset = build_toolset(
+        AddExpense(storage.repository, clock, timezone),
+        ListExpenses(storage.repository),
+        clock,
+        timezone,
     )
-    logger.info(f"Using {llm.name} LLM provider")
+    llm = create_llm_provider([toolset])
+    logger.info(f"Using {llm.name} LLM provider ({llm.model.model_name})")
 
     chat = create_chat_provider()
     logger.info(f"Using {chat.platform} chat provider")
@@ -80,6 +78,8 @@ async def main() -> None:
 
 def run() -> None:
     load_dotenv()
+    # pydantic-ai otherwise prints a promotional banner into the logs on the first run.
+    os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
     configure_logging()
 
     try:

@@ -29,8 +29,8 @@ queryable.
 
 ```
 Telegram  ──▶  ChatProvider  ──▶  MessageHandler  ──▶  LLMProvider
-   ▲         (python-telegram-bot)        │       (OpenAI / Claude / Gemini)
-   │                                      │
+   ▲         (python-telegram-bot)        │         (pydantic-ai: OpenAI /
+   │                                      │          Claude / Gemini)
    └──────────────────────────────────────┴──▶  ExpenseRepository
                     reply                          (Google Sheets)
 ```
@@ -41,9 +41,13 @@ Telegram today, WhatsApp through a gateway next. `LLMProvider` is an interface b
 (and possibly Postgres later). **Do not add more abstraction than this.** No plugin
 registry, no dependency injection container.
 
-The model never touches storage directly. It calls tools (`add_expense`, `list_expenses`),
-which are thin adapters over the use cases in `src/open_assessor/application/usecases/`; the use cases
-hold the business rules and talk to `ExpenseRepository`.
+The model never touches storage directly. It calls tools (`add_expense`, `list_expenses`,
+`get_current_date`). Their logic is plain functions in
+`src/open_assessor/application/assistant_tools.py`, and
+`src/open_assessor/infrastructure/llm/toolset.py` exposes them to pydantic-ai with typed
+arguments. Who is asking (`user_id`, `message_key`) reaches the tools as dependencies the
+model cannot set. The tools call the use cases in `src/open_assessor/application/usecases/`,
+which hold the business rules and talk to `ExpenseRepository`.
 
 ### Stack
 
@@ -51,7 +55,7 @@ hold the business rules and talk to `ExpenseRepository`.
 | ------------- | ------------------------------- |
 | Runtime       | Python 3.13+, managed with `uv` |
 | Chat          | `python-telegram-bot`           |
-| LLM           | OpenAI, Anthropic or Gemini SDK |
+| LLM           | `pydantic-ai` (OpenAI, Anthropic or Gemini) |
 | Storage       | Google Sheets API v4            |
 | Checks        | `pytest`, `pyright` (strict), `ruff` |
 | Logging       | standard `logging`              |
