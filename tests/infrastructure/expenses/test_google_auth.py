@@ -1,5 +1,6 @@
 import base64
 import json
+from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -10,6 +11,7 @@ from open_assessor.infrastructure.expenses.google_auth import (
     KeyFile,
     create_sheets_api,
     read_google_credentials,
+    read_service_account_email,
 )
 
 KEY = {"client_email": "bot@project.iam.gserviceaccount.com", "private_key": "PRIVATE", "extra": 1}
@@ -73,3 +75,22 @@ def test_create_sheets_api_builds_a_client_without_touching_the_network():
     api = create_sheets_api({"GOOGLE_SERVICE_ACCOUNT_JSON": key})
 
     assert callable(api.values_append)
+
+
+class TestReadServiceAccountEmail:
+    def test_reads_it_from_the_inline_json(self):
+        env = {"GOOGLE_SERVICE_ACCOUNT_JSON": RAW}
+
+        assert read_service_account_email(env) == "bot@project.iam.gserviceaccount.com"
+
+    def test_reads_it_from_the_key_file(self, tmp_path: Path):
+        key_file = tmp_path / "key.json"
+        key_file.write_text(RAW, encoding="utf-8")
+
+        env = {"GOOGLE_APPLICATION_CREDENTIALS": str(key_file)}
+        assert read_service_account_email(env) == "bot@project.iam.gserviceaccount.com"
+
+    def test_is_none_when_the_key_file_cannot_be_read(self, tmp_path: Path):
+        env = {"GOOGLE_APPLICATION_CREDENTIALS": str(tmp_path / "missing.json")}
+
+        assert read_service_account_email(env) is None

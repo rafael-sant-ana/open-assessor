@@ -41,6 +41,10 @@ SHEETS_EPOCH = date(1899, 12, 30)
 type Sleep = Callable[[float], Awaitable[None]]
 
 
+class UnexpectedHeaderError(RuntimeError):
+    """The expenses tab exists but was not created by the bot."""
+
+
 @dataclass(frozen=True, slots=True)
 class _StoredExpense:
     expense: Expense
@@ -230,7 +234,7 @@ async def _ensure_schema(
         return sheet_id
 
     if tuple(header) != SHEET_HEADER:
-        raise RuntimeError(
+        raise UnexpectedHeaderError(
             f'The "{tab_name}" tab has unexpected headers ({", ".join(map(str, header))}). '
             f"Expected: {', '.join(SHEET_HEADER)}. Fix or rename the tab; it is never overwritten."
         )
