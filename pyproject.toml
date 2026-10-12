@@ -9,6 +9,7 @@ dependencies = [
     "google-api-python-client>=2.180",
     "google-auth>=2.40",
     "pydantic-ai-slim[anthropic,google,openai]>=2.53",
+    "pymongo>=4.13",
     "python-dotenv>=1.1",
     "python-telegram-bot>=22.0",
     "tzdata>=2025.2",

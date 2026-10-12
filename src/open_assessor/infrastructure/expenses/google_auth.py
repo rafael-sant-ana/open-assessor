@@ -47,6 +47,22 @@ def read_google_credentials(env: Mapping[str, str] = os.environ) -> GoogleCreden
     )
 
 
+def read_service_account_email(env: Mapping[str, str] = os.environ) -> str | None:
+    """The address users share their spreadsheet with; `None` if the key file is unreadable."""
+    match read_google_credentials(env):
+        case InlineCredentials(client_email, _):
+            return client_email
+        case KeyFile(path):
+            try:
+                with open(path, encoding="utf-8") as file:
+                    parsed: object = json.load(file)
+            except (OSError, ValueError):
+                return None
+            fields: dict[str, object] = parsed if isinstance(parsed, dict) else {}  # pyright: ignore[reportUnknownVariableType]
+            email = fields.get("client_email")
+            return email if isinstance(email, str) else None
+
+
 def create_sheets_api(env: Mapping[str, str] = os.environ) -> GoogleSheetsApi:
     match read_google_credentials(env):
         case InlineCredentials(client_email, private_key):

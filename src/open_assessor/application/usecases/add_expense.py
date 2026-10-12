@@ -63,7 +63,7 @@ class AddExpense:
         except InvalidExpenseError as error:
             return Invalid(str(error))
 
-        if await self._repository.exists_by_message_key(expense.message_key):
+        if await self._repository.exists_by_message_key(expense.user_id, expense.message_key):
             return Duplicate()
 
         await self._repository.add(expense)

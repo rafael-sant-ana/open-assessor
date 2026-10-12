@@ -192,9 +192,11 @@ sheet doesn't exist. The full walkthrough, with troubleshooting, is in the
 | `GEMINI_MODEL`                   | no       | defaults to `gemini-3.6-flash`                 |
 | `CHAT_PROVIDER`                  | no       | chat platform: `telegram` (default)            |
 | `TELEGRAM_BOT_TOKEN`             | yes      | bot token from @BotFather                      |
+| `ADMIN_USERS`                    | yes*     | comma-separated `platform:id` allowed to run `/autorizar` and `/remover` |
 | `ALLOWED_USERS`                  | yes*     | comma-separated `platform:id`, e.g. `telegram:123456` |
-| `ALLOWED_JIDS`                   | yes*     | WhatsApp JIDs (*one of the two is required); comma-separated, e.g. `5531999999999@s.whatsapp.net` |
-| `SPREADSHEET_ID`                 | v1       | from the spreadsheet URL; without it expenses are kept in memory only |
+| `ALLOWED_JIDS`                   | yes*     | WhatsApp JIDs (*one of these three is required); comma-separated, e.g. `5531999999999@s.whatsapp.net` |
+| `MONGODB_URL`                    | no       | stores users and their spreadsheets; see [multi-user setup](docs/multi-user.md) |
+| `SPREADSHEET_ID`                 | v1       | spreadsheet for env-listed users who haven't run `/planilha`; without it (and without `MONGODB_URL`) expenses are kept in memory only |
 | `GOOGLE_APPLICATION_CREDENTIALS` | v1*      | path to the service account JSON (*one of this and `GOOGLE_SERVICE_ACCOUNT_JSON` when `SPREADSHEET_ID` is set) |
 | `GOOGLE_SERVICE_ACCOUNT_JSON`    | v1*      | the service account JSON itself, raw or base64; wins over the path |
 | `TIMEZONE`                       | no       | defaults to `America/Sao_Paulo`                |
@@ -208,7 +210,10 @@ sheet doesn't exist. The full walkthrough, with troubleshooting, is in the
   gitignored.
 - The service account JSON key grants write access to every sheet it's been shared with.
   Keep it outside the repo.
-- The allowlist is your only access control. There is no other authentication.
+- The user registry (`ADMIN_USERS`, `ALLOWED_USERS` and users added with `/autorizar`) is
+  your only access control. There is no other authentication.
+- Every user's spreadsheet is shared with the same service account, so whoever holds its key
+  can read all of them.
 - Message contents are sent to the configured LLM provider. If that's not acceptable for
   your data, swap in a local model behind `LLMProvider`.
 
@@ -216,8 +221,9 @@ sheet doesn't exist. The full walkthrough, with troubleshooting, is in the
 
 - WhatsApp is not available until the gateway lands. When it does, it will use Baileys, an
   unofficial client: WhatsApp can break it and in principle ban numbers for automated use.
-- Without `SPREADSHEET_ID`, expenses are kept in memory and lost when the process
-  restarts. With it they go to Google Sheets. Run one instance per spreadsheet.
+- Without `SPREADSHEET_ID` or `MONGODB_URL`, expenses are kept in memory and lost when the
+  process restarts. With either, each user's expenses go to their own Google Sheet. Run one
+  instance per bot: the per-spreadsheet caches assume no other process writes to the sheets.
 - One chat platform per deployment.
 
 ## Contributing

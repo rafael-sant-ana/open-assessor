@@ -1,6 +1,7 @@
 import contextlib
 
-from open_assessor.application.security.allow_list import AllowList
+from open_assessor.application.handlers.user_commands import UserCommands
+from open_assessor.application.security.authorizer import Authorizer
 from open_assessor.domain.messages import Message
 from open_assessor.ports.chat_provider import ChatProvider
 from open_assessor.ports.llm_provider import LLMProvider
@@ -20,12 +21,14 @@ class MessageHandler:
     def __init__(
         self,
         llm: LLMProvider,
-        allow_list: AllowList,
+        authorizer: Authorizer,
+        commands: UserCommands,
         logger: Logger,
         transcriber: Transcriber | None = None,
     ) -> None:
         self._llm = llm
-        self._allow_list = allow_list
+        self._authorizer = authorizer
+        self._commands = commands
         self._logger = logger
         self._transcriber = transcriber
 
@@ -36,8 +39,25 @@ class MessageHandler:
             await self._reply(chat, message, f"Seu ID é:\n> {message.author.id}")
             return
 
-        if not self._allow_list.is_allowed(message.platform, message.author):
+        try:
+            user = await self._authorizer.find(message.platform, message.author)
+            command_reply = None if user is None else await self._commands.run(user, message)
+        except Exception:
+            self._logger.exception("Failed to authorize the user or run their command", context)
+            await self._reply(chat, message, ERROR_REPLY)
+            return
+
+        if user is None:
             self._logger.debug("Ignoring message from unauthorized user", context)
+            return
+
+        if command_reply is not None:
+            await self._reply(chat, message, command_reply)
+            return
+
+        setup_reply = self._commands.missing_spreadsheet_reply(user)
+        if setup_reply is not None:
+            await self._reply(chat, message, setup_reply)
             return
 
         if message.audio is not None and self._transcriber is None:
@@ -68,7 +88,7 @@ class MessageHandler:
                     f"{message.platform}:{message.chat_id}",
                     content,
                     ToolContext(
-                        user_id=f"{message.platform}:{message.author.id}",
+                        user_id=user.id,
                         message_key=f"{message.platform}:{message.chat_id}:{message.id}",
                     ),
                 )
