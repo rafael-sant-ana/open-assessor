@@ -15,7 +15,7 @@ from telegram.ext import (
     filters,
 )
 
-from open_assessor.domain.messages import Message, MessageUser
+from open_assessor.domain.messages import Audio, Message, MessageUser
 from open_assessor.infrastructure.logging.std_logger import StdLogger
 from open_assessor.ports.chat_provider import MessageListener, Unsubscribe
 from open_assessor.ports.logger import MessageContext
@@ -23,6 +23,11 @@ from open_assessor.ports.logger import MessageContext
 MAX_MESSAGE_LENGTH = 4096
 TYPING_REFRESH_SECONDS = 4.0
 """Telegram's typing action expires after about 5 seconds, so it is renewed while active."""
+MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024
+"""Bots cannot download files larger than this through getFile."""
+VOICE_FILE_NAME = "voice.ogg"
+AUDIO_FILE_NAME = "audio.mp3"
+DEFAULT_AUDIO_MIME_TYPE = "audio/ogg"
 
 type Sleep = Callable[[float], Awaitable[None]]
 type TelegramApplication = Application[ExtBot[None], ContextTypes.DEFAULT_TYPE, Any, Any, Any, Any]
@@ -70,6 +75,7 @@ class TelegramProvider:
 
         # Commands are text too, and /meu-id must get through.
         self._application.add_handler(MessageHandler(filters.TEXT, self._on_text))
+        self._application.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, self._on_audio))
         self._application.add_error_handler(self._on_error)
 
     @property
@@ -141,13 +147,52 @@ class TelegramProvider:
         ):
             return
 
-        received = Message(
-            id=str(message.message_id),
-            platform=self.platform,
-            author=MessageUser(str(message.from_user.id)),
-            content=message.text,
-            chat_id=str(message.chat.id),
+        await self._dispatch(
+            Message(
+                id=str(message.message_id),
+                platform=self.platform,
+                author=MessageUser(str(message.from_user.id)),
+                content=message.text,
+                chat_id=str(message.chat.id),
+            )
         )
+
+    async def _on_audio(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+        message = update.message
+        if message is None or message.chat.type != ChatType.PRIVATE or message.from_user is None:
+            return
+
+        if message.voice is not None:
+            media, file_name = message.voice, VOICE_FILE_NAME
+        elif message.audio is not None:
+            media, file_name = message.audio, message.audio.file_name or AUDIO_FILE_NAME
+        else:
+            return
+
+        context: MessageContext = {
+            "chat_id": str(message.chat.id),
+            "message_id": str(message.message_id),
+        }
+        if media.file_size is not None and media.file_size > MAX_DOWNLOAD_BYTES:
+            # Logged only: replying here would reach users outside the allow list.
+            self._logger.warning("Ignoring audio above the bot download limit", context)
+            return
+
+        file = await media.get_file()
+        data = bytes(await file.download_as_bytearray())
+
+        await self._dispatch(
+            Message(
+                id=str(message.message_id),
+                platform=self.platform,
+                author=MessageUser(str(message.from_user.id)),
+                content="",
+                chat_id=str(message.chat.id),
+                audio=Audio(data, file_name, media.mime_type or DEFAULT_AUDIO_MIME_TYPE),
+            )
+        )
+
+    async def _dispatch(self, received: Message) -> None:
         context: MessageContext = {"chat_id": received.chat_id, "message_id": received.id}
         self._logger.debug("Message received", context)
 

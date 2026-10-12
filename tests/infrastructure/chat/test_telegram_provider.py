@@ -5,8 +5,12 @@ from typing import Any
 import pytest
 from telegram.ext import MessageHandler, filters
 
-from open_assessor.domain.messages import Message, MessageUser
-from open_assessor.infrastructure.chat.telegram_provider import TelegramProvider, split_message
+from open_assessor.domain.messages import Audio, Message, MessageUser
+from open_assessor.infrastructure.chat.telegram_provider import (
+    MAX_DOWNLOAD_BYTES,
+    TelegramProvider,
+    split_message,
+)
 
 
 class FakeBot:
@@ -103,6 +107,41 @@ def update(
     )
 
 
+class FakeMedia:
+    def __init__(self, mime_type: str | None, file_name: str | None, file_size: int | None) -> None:
+        self.mime_type = mime_type
+        self.file_name = file_name
+        self.file_size = file_size
+        self.downloads = 0
+
+    async def get_file(self) -> SimpleNamespace:
+        async def download_as_bytearray() -> bytearray:
+            self.downloads += 1
+            return bytearray(b"ogg-bytes")
+
+        return SimpleNamespace(download_as_bytearray=download_as_bytearray)
+
+
+def media(
+    mime_type: str | None = "audio/ogg", file_name: str | None = None, file_size: int | None = 1024
+) -> FakeMedia:
+    return FakeMedia(mime_type, file_name, file_size)
+
+
+def audio_update(
+    voice: FakeMedia | None = None, audio: FakeMedia | None = None, chat_type: str = "private"
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        message=SimpleNamespace(
+            message_id=7,
+            voice=voice,
+            audio=audio,
+            chat=SimpleNamespace(id=42, type=chat_type),
+            from_user=SimpleNamespace(id=99),
+        )
+    )
+
+
 class Setup:
     def __init__(self) -> None:
         self.app = FakeApplication()
@@ -112,6 +151,9 @@ class Setup:
 
     async def deliver(self, u: SimpleNamespace) -> None:
         await self.app.handlers[0].callback(u, None)
+
+    async def deliver_audio(self, u: SimpleNamespace) -> None:
+        await self.app.handlers[1].callback(u, None)
 
     def collect(self) -> None:
         async def listener(message: Message) -> None:
@@ -143,10 +185,64 @@ def test_has_the_telegram_platform(setup: Setup):
 
 
 def test_listens_to_all_text_messages_including_commands(setup: Setup):
-    [handler] = setup.app.handlers
+    handler = setup.app.handlers[0]
 
     assert isinstance(handler, MessageHandler)
     assert handler.filters is filters.TEXT
+
+
+def test_listens_to_voice_notes_and_audio_files(setup: Setup):
+    handler = setup.app.handlers[1]
+
+    assert isinstance(handler, MessageHandler)
+    assert str(handler.filters) == str(filters.VOICE | filters.AUDIO)
+
+
+async def test_maps_private_voice_notes_to_audio_messages(setup: Setup):
+    setup.collect()
+
+    await setup.deliver_audio(audio_update(voice=media()))
+
+    assert setup.received == [
+        Message(
+            id="7",
+            platform="telegram",
+            author=MessageUser("99"),
+            content="",
+            chat_id="42",
+            audio=Audio(b"ogg-bytes", "voice.ogg", "audio/ogg"),
+        )
+    ]
+
+
+async def test_keeps_the_original_name_of_audio_files(setup: Setup):
+    setup.collect()
+
+    await setup.deliver_audio(
+        audio_update(audio=media(mime_type="audio/mpeg", file_name="gastos.mp3"))
+    )
+
+    [received] = setup.received
+    assert received.audio == Audio(b"ogg-bytes", "gastos.mp3", "audio/mpeg")
+
+
+async def test_ignores_voice_notes_in_groups(setup: Setup):
+    setup.collect()
+
+    await setup.deliver_audio(audio_update(voice=media(), chat_type="group"))
+
+    assert setup.received == []
+
+
+async def test_skips_audio_above_the_download_limit_without_downloading(setup: Setup):
+    setup.collect()
+    big = media(file_size=MAX_DOWNLOAD_BYTES + 1)
+
+    await setup.deliver_audio(audio_update(voice=big))
+
+    assert setup.received == []
+    assert big.downloads == 0
+    assert setup.app.bot.sent == []
 
 
 async def test_connect_validates_the_token_starts_polling_and_sets_is_connected(setup: Setup):
