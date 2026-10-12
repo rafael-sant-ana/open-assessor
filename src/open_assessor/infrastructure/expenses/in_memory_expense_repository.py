@@ -7,7 +7,7 @@ class InMemoryExpenseRepository:
         self._expenses: list[Expense] = []
 
     async def add(self, expense: Expense) -> None:
-        if await self.exists_by_message_key(expense.message_key):
+        if await self.exists_by_message_key(expense.user_id, expense.message_key):
             return
         self._expenses.append(expense)
 
@@ -17,7 +17,7 @@ class InMemoryExpenseRepository:
                 return self._expenses.pop(index)
         return None
 
-    async def exists_by_message_key(self, message_key: str) -> bool:
+    async def exists_by_message_key(self, user_id: str, message_key: str) -> bool:
         return any(e.message_key == message_key for e in self._expenses)
 
     async def list_by(self, user_id: str, date_range: DateRange) -> list[Expense]:

@@ -59,7 +59,7 @@ async def test_saves_a_normalized_expense_dated_today_in_the_configured_timezone
         "created_at": "2026-10-02T02:30:00.000Z",
     }
     assert result.expense.currency == "BRL"
-    assert await repository.exists_by_message_key("telegram:10:100#0")
+    assert await repository.exists_by_message_key("telegram:1", "telegram:10:100#0")
 
 
 async def test_uses_the_given_date(add_expense: AddExpense):
@@ -105,4 +105,4 @@ async def test_rejects_invalid_input_without_writing(
 
     assert isinstance(result, Invalid)
     assert re.search(reason, result.reason)
-    assert not await repository.exists_by_message_key("telegram:10:100#0")
+    assert not await repository.exists_by_message_key("telegram:1", "telegram:10:100#0")

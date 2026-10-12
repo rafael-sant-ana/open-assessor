@@ -16,9 +16,9 @@ class ExpenseRepositoryContract:
         assert await repo.list_by("telegram:1", DateRange("2026-02-01", "2026-02-28")) == [saved]
 
     async def test_reports_whether_a_message_key_was_already_saved(self, repo: ExpenseRepository):
-        assert not await repo.exists_by_message_key("telegram:10:100#0")
+        assert not await repo.exists_by_message_key("telegram:1", "telegram:10:100#0")
         await repo.add(make_expense())
-        assert await repo.exists_by_message_key("telegram:10:100#0")
+        assert await repo.exists_by_message_key("telegram:1", "telegram:10:100#0")
 
     async def test_ignores_a_second_add_with_the_same_message_key(self, repo: ExpenseRepository):
         await repo.add(make_expense(amount_cents=5000))
@@ -49,8 +49,8 @@ class ExpenseRepositoryContract:
             await repo.add(expense)
 
         assert await repo.remove_last_by("telegram:1") == last
-        assert not await repo.exists_by_message_key("telegram:10:2#0")
-        assert await repo.exists_by_message_key("telegram:10:3#0")
+        assert not await repo.exists_by_message_key("telegram:1", "telegram:10:2#0")
+        assert await repo.exists_by_message_key("telegram:2", "telegram:10:3#0")
         assert await repo.remove_last_by("telegram:1") == first
 
     async def test_allows_re_adding_an_expense_after_it_was_removed(self, repo: ExpenseRepository):
@@ -58,7 +58,7 @@ class ExpenseRepositoryContract:
         await repo.remove_last_by("telegram:1")
         await repo.add(make_expense())
 
-        assert await repo.exists_by_message_key("telegram:10:100#0")
+        assert await repo.exists_by_message_key("telegram:1", "telegram:10:100#0")
 
     async def test_returns_none_when_the_user_has_nothing_to_remove(self, repo: ExpenseRepository):
         assert await repo.remove_last_by("telegram:1") is None

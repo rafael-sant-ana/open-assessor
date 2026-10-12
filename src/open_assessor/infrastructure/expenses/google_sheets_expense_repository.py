@@ -108,7 +108,7 @@ class GoogleSheetsExpenseRepository:
 
             (await self._load_keys()).add(expense.message_key)
 
-    async def exists_by_message_key(self, message_key: str) -> bool:
+    async def exists_by_message_key(self, user_id: str, message_key: str) -> bool:
         async with self._lock:
             return message_key in await self._load_keys()
 

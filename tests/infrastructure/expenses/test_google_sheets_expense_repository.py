@@ -115,10 +115,10 @@ class TestMessageKeyCache:
         repo = await create(fake)
         reads_before = len(fake.calls_to("values.get"))
 
-        await repo.exists_by_message_key("a")
+        await repo.exists_by_message_key("telegram:1", "a")
         await repo.add(make_expense(message_key="a"))
         await repo.add(make_expense(message_key="b"))
-        await repo.exists_by_message_key("b")
+        await repo.exists_by_message_key("telegram:1", "b")
 
         assert len(fake.calls_to("values.get")) - reads_before == 1
 
@@ -128,7 +128,7 @@ class TestMessageKeyCache:
 
         restarted = await create(fake)
 
-        assert await restarted.exists_by_message_key("telegram:10:100#0")
+        assert await restarted.exists_by_message_key("telegram:1", "telegram:10:100#0")
 
 
 class TestReading:
@@ -211,7 +211,7 @@ class TestRetries:
         await repo.add(make_expense())
 
         assert len(fake.rows()) == 2
-        assert await repo.exists_by_message_key("telegram:10:100#0")
+        assert await repo.exists_by_message_key("telegram:1", "telegram:10:100#0")
 
     async def test_keeps_working_after_a_failed_operation(self):
         fake = FakeSheets()
@@ -222,5 +222,5 @@ class TestRetries:
             await repo.add(make_expense(message_key="lost"))
         await repo.add(make_expense(message_key="fine"))
 
-        assert await repo.exists_by_message_key("fine")
-        assert not await repo.exists_by_message_key("lost")
+        assert await repo.exists_by_message_key("telegram:1", "fine")
+        assert not await repo.exists_by_message_key("telegram:1", "lost")

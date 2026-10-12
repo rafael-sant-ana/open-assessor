@@ -72,8 +72,8 @@ class TestAddExpenses:
         )
 
         assert [r["status"] for r in output["results"]] == ["saved", "saved"]
-        assert await repository.exists_by_message_key("telegram:10:100#0")
-        assert await repository.exists_by_message_key("telegram:10:100#1")
+        assert await repository.exists_by_message_key("telegram:1", "telegram:10:100#0")
+        assert await repository.exists_by_message_key("telegram:1", "telegram:10:100#1")
 
     async def test_reports_a_replayed_message_as_duplicate_instead_of_saving_again(
         self, add_expense: AddExpense

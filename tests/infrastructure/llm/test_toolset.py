@@ -21,7 +21,7 @@ CTX = ToolContext(user_id="telegram:1", message_key="telegram:10:100")
 
 
 class BrokenRepository(InMemoryExpenseRepository):
-    async def exists_by_message_key(self, message_key: str) -> bool:
+    async def exists_by_message_key(self, user_id: str, message_key: str) -> bool:
         raise ConnectionError("Sheets is down")
 
     async def list_by(self, user_id: str, date_range: DateRange) -> list[Expense]:
@@ -125,7 +125,7 @@ class TestCalls:
         )
 
         assert model.retry_prompts() != []
-        assert not await repository.exists_by_message_key("telegram:10:100#0")
+        assert not await repository.exists_by_message_key("telegram:1", "telegram:10:100#0")
 
     @pytest.mark.parametrize(
         "step",
